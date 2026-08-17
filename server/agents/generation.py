@@ -59,6 +59,8 @@ async def generate_shot_version(
     latency_ms = int((time.monotonic() - start) * 1000)
 
     if operation.error:
+        # The operation itself failed — nothing was actually billed for output, so no
+        # log_decision call here. (If Veo's own error-billing policy differs, revisit.)
         raise RuntimeError(f"Veo generation failed for {brief.shot_code}: {operation.error}")
     if not operation.result or not operation.result.generated_videos:
         raise RuntimeError(f"Veo generation returned no video for {brief.shot_code}: {operation}")
@@ -67,25 +69,17 @@ async def generate_shot_version(
     if video is None:
         raise RuntimeError(f"Veo generation returned an empty video entry for {brief.shot_code}")
 
-    if video.video_bytes:
-        video_bytes = video.video_bytes
-    elif video.uri:
-        # client.aio.files.download(), not a raw httpx GET on video.uri: the download
-        # endpoint 302-redirects to a signed URL, and the request needs the SDK's own
-        # auth — a bare unauthenticated GET fails on both counts (found by hitting an
-        # unfollowed-redirect error on a real, already-billed generation call).
-        video_bytes = await client.aio.files.download(file=video.uri)
-    else:
-        raise RuntimeError(f"Veo generation result has neither bytes nor uri: {video}")
-
+    # Log the spend as soon as the operation itself succeeds — that's the real billing
+    # event — rather than after the download below. A download failure (as happened on
+    # the first live run: see git history on this file) must not leave an already-billed
+    # generation with zero record of it.
     cost = estimate_veo_cost(model, duration_seconds)
-
     log_decision(
         run_id=run_id,
         agent_name="generation_adapter",
         step="generate_video",
         input_ref=brief.shot_code,
-        output_ref=f"{len(video_bytes)} bytes, {duration_seconds}s",
+        output_ref=f"{duration_seconds}s requested",
         model=model,
         tokens_in=0,
         tokens_out=0,
@@ -93,4 +87,13 @@ async def generate_shot_version(
         latency_ms=latency_ms,
     )
 
-    return video_bytes
+    if video.video_bytes:
+        return video.video_bytes
+    if video.uri:
+        # client.aio.files.download(), not a raw httpx GET on video.uri: the download
+        # endpoint 302-redirects to a signed URL, and the request needs the SDK's own
+        # auth — a bare unauthenticated GET fails on both counts (found by hitting an
+        # unfollowed-redirect error on a real, already-billed generation call).
+        video_bytes: bytes = await client.aio.files.download(file=video.uri)
+        return video_bytes
+    raise RuntimeError(f"Veo generation result has neither bytes nor uri: {video}")

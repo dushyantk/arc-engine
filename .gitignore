@@ -24,3 +24,7 @@ __pycache__/
 *.log
 .DS_Store
 .vercel
+
+# real generated media + the ledger of what produced it — local record,
+# not project history; videos don't belong in git, see generations/LEDGER.md
+/generations/

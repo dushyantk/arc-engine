@@ -96,7 +96,14 @@ the planner's continuity-grounded prompt worked) but the critic caught two new i
 suitcase in the wrong hand, and the background clock still legible with mutating hands. Approval
 gate correctly returned `revise`, not a rubber-stamped pass. Revision agent proposed a side-profile
 framing for v004 that plausibly fixes both at once. This is the real product behavior — continuity
-whack-a-mole — not a rigged demo.
+whack-a-mole — not a rigged demo. Full record, including the exact prompt and cost breakdown:
+`generations/LEDGER.md` (gitignored — real generated video doesn't belong in git history).
+
+**A "no silent steps" gap this run found**: the $3.20 Veo charge above was originally missing
+from `agent_decision_log` — the download step crashed (see the fix above) after the money was
+spent but before `log_decision()` ran. Fixed by moving the log call to right after the Veo
+operation itself succeeds, not after the download; the missing entry was backfilled by hand with
+the real cost. See `generations/LEDGER.md` for the full account.
 
 **Exit criteria for this phase**: run the seeded 3-shot sequence through the full loop end-to-end
 from the command line (no UI yet) and get an `approved` sequence with a real revision history.
