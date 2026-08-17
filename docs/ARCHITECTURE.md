@@ -132,11 +132,24 @@ Five roles, not five microservices — this can be one FastAPI process to start.
    shot (e.g. 4); on cap-out, transition to `needs_human` rather than looping forever or
    auto-approving — human-in-the-loop where production risk requires it.
 
-Model split (verify exact API model IDs at implementation time — these move):
-- **Critic**: Gemini 3 Pro — accuracy over cost, this is the judgment call that gates approval.
-- **Planner / fingerprint extraction**: Gemini 3 Flash — high-volume, structured, cost-sensitive.
-- **Generation**: Veo 3.1 via Vertex AI — image-conditioned and first/last-frame guided calls are
-  confirmed current capabilities (multi-image guidance, improved temporal consistency vs Veo 3).
+Model split (verified live against the real API on 2026-08-17, not assumed — see the setup note
+below for what changed):
+- **Critic**: `gemini-3.1-pro-preview` — accuracy over cost, this is the judgment call that gates
+  approval. Top reasoning tier available; "preview" naming, not a stability concern for this
+  project.
+- **Planner / fingerprint extraction**: `gemini-3.6-flash` — high-volume, structured,
+  cost-sensitive. Confirmed working with a live `generateContent` call.
+- **Generation**: `veo-3.1-generate-preview` (quality) or `veo-3.1-fast-generate-preview`
+  (cheaper/faster revision iterations) — both confirmed available. Image-conditioned and
+  first/last-frame guided calls are current Veo 3.1 capabilities (multi-image guidance, improved
+  temporal consistency vs Veo 3).
+
+**Auth, simpler than originally planned**: Veo 3.1 is reachable through the same Gemini Developer
+API as the text/vision models — `models/veo-3.1-generate-preview` shows up in the same
+`GEMINI_API_KEY`-authenticated model list. No separate Vertex AI project/service-account plumbing
+needed for the beta. `GOOGLE_APPLICATION_CREDENTIALS` stays in `.env.example` as an optional
+upgrade path (higher quota, org billing) but `GEMINI_API_KEY` is the primary credential — see
+[`.env.example`](../.env.example).
 
 ## 7. System diagram
 
@@ -220,8 +233,8 @@ SQ010_SH030/
 | Backend agent runtime | FastAPI (Python) | best Gemini/Veo SDK support, async agent loop |
 | Frontend contracts | Zod | boundary validation |
 | Backend contracts | Pydantic v2 | boundary validation, mirrors Zod shapes |
-| Video generation | Veo 3.1 (Vertex AI) | image-conditioned + first/last-frame guidance |
-| Vision / critique / planning | Gemini 3 Pro (critic) / Flash (planner) | multimodal video understanding, structured output |
+| Video generation | Veo 3.1, via the Gemini Developer API (`GEMINI_API_KEY`) | image-conditioned + first/last-frame guidance, no separate Vertex setup |
+| Vision / critique / planning | `gemini-3.1-pro-preview` (critic) / `gemini-3.6-flash` (planner) | multimodal video understanding, structured output |
 | ORM | Drizzle | matches existing project convention |
 
 ## 11. Ports (already reserved, `~/dev/ports.md`, path `~/dev/arc-engine`)
