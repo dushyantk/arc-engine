@@ -96,6 +96,14 @@ footage and checking it by hand, not theorized:
    physical description beyond what's given is not yet grounded and will vary between generations
    until real reference imagery exists.
 
+5. **Relying on blur/focus to hide an object has a 0-for-3 real track record.** Three separate real
+   generations asked for a background object (a station clock) to be blurred or out of focus so it
+   wouldn't be legible — different wording each time — and all three rendered it sharp and legible
+   anyway. Do not repeat that approach. If something must not be prominent or legible, prefer
+   excluding it from the composition/frame entirely (camera angle, framing, blocking that puts it
+   out of shot) over asking for shallow depth of field or bokeh to obscure it — the evidence so far
+   says that instruction doesn't get followed reliably.
+
 Produce a ShotBrief with these exact fields: shot_code (string), invariants (a list of specific
 things that must NOT change from the continuity research above — be concrete, not generic),
 reference_asset_ids (a list of UUIDs from the reference list above), prompt (the actual Veo
