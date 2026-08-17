@@ -8,13 +8,23 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 ShotStatus = Literal[
     "pending", "generating", "reviewing", "revise", "approved", "needs_human"
 ]
 QCVerdict = Literal["pass", "fail", "warning"]
 QCSeverity = Literal["info", "warning", "critical"]
+
+
+class GenerationSettings(BaseModel):
+    """Veo 3.1 call parameters. An explicit model, not a loose dict — Gemini's
+    Developer API structured-output mode rejects open-ended `additionalProperties`
+    objects outright, and an explicit shape is the right call anyway."""
+
+    model: str
+    seed: int | None = None
+    image_refs: list[str] = Field(default_factory=list)
 
 
 class ShotBrief(BaseModel):
@@ -24,7 +34,7 @@ class ShotBrief(BaseModel):
     invariants: list[str]
     reference_asset_ids: list[UUID]
     prompt: str
-    generation_settings: dict[str, object]
+    generation_settings: GenerationSettings
 
 
 class QCFinding(BaseModel):
@@ -58,7 +68,7 @@ class ContinuityFingerprint(BaseModel):
     palette: list[str]
     approved_reference_frames: list[str]
     generation_prompt: str
-    generation_settings: dict[str, object]
+    generation_settings: GenerationSettings
     qc_findings: list[QCFinding]
     supervisor_notes: str
     revision_reason: str | None = None

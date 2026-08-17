@@ -56,21 +56,40 @@ system design these phases implement.
 
 ## Phase 2 — Generation & critique pipeline (the core loop)
 
-- [ ] Reference asset ingestion: upload character/prop/environment refs → MinIO + Postgres, lock
-- [ ] Planner agent: scene brief + ClickHouse continuity query → `ShotBrief` per shot. The query
-      itself goes through an MCP client in the FastAPI runtime calling `mcp-clickhouse` (same
-      server configured in `.mcp.json` for dev), not a bare `clickhouse-connect` call — that's
-      the actual hackathon-track requirement, distinct from the dev-tooling connection above
-- [ ] Veo 3.1 generation adapter: image-conditioned + first/last-frame calls → `shot_versions` row
-- [ ] Supervisor/Critic agent: multimodal comparison against refs + neighbor shots → `QCFinding[]`,
-      explicitly prompted to separate creative variation from generative defect
-- [ ] Revision agent: FAILed findings → `RevisionInstruction` → re-trigger generation with locked refs
-- [ ] Approval gate: deterministic status transitions, revision-round cap, `needs_human` escalation
-- [ ] Every agent step writes to `agent_decision_log` (model, tokens, cost, latency) — no silent steps
-- [ ] Malformed critic output is a hard stop with a visible error, not a silently-accepted pass
+All pieces below are real implementations, verified against the live local stack (Postgres,
+ClickHouse, MinIO, real Gemini calls) — not mocked, not just type-checked. Two real SDK bugs were
+found and fixed along the way; see [`server/agents/planner.py`](../server/agents/planner.py) and
+[`server/models/contracts.py`](../server/models/contracts.py) comments for what and why.
+
+- [x] Reference asset ingestion: [`server/reference_ingestion.py`](../server/reference_ingestion.py)
+      — upload → MinIO, lock → Postgres. Verified with a real upload + byte-for-byte read-back.
+- [x] Planner agent: [`server/agents/planner.py`](../server/agents/planner.py). Verified live — the
+      agent queried `dailies.continuity_fingerprints` and `dailies.qc_findings` through its own MCP
+      tool calls (not a hardcoded query) and produced a `ShotBrief` grounded in what it found,
+      including the exact suitcase hex color from seeded data.
+- [x] Supervisor/Critic agent: [`server/agents/critic.py`](../server/agents/critic.py). Verified
+      with a synthetic test clip (real multimodal call, real schema validation) — full QC judgment
+      needs real footage, see below.
+- [x] Revision agent: [`server/agents/revision.py`](../server/agents/revision.py). Verified against
+      the real seeded SH020 v002 findings — correctly targeted v003, locked the right refs.
+- [x] Approval gate: [`server/agents/approval.py`](../server/agents/approval.py). Deterministic,
+      unit-verified: fail → revise, fail at round cap → needs_human, warnings-only → approved.
+- [x] Every agent step writes to `agent_decision_log` — confirmed real cost/token/latency rows in
+      ClickHouse after each of the above (e.g. ~$0.01 for a full plan_shot call).
+- [x] Malformed output is a hard stop: every structured call raises on `response.parsed is None`
+      or a Pydantic validation failure, not caught or swallowed anywhere in the chain.
+- [x] Added an outer retry/backoff layer ([`server/retry.py`](../server/retry.py)) after hitting
+      transient 503s specifically on MCP-tool-enabled calls during verification — not just relying
+      on the SDK's own internal retry.
+- [ ] **Veo 3.1 generation adapter**: [`server/agents/generation.py`](../server/agents/generation.py)
+      is written and type-checked against the real SDK (`generate_videos`, operation polling,
+      `VideoGenerationReferenceImage`) but **not yet executed** — a real call costs real money
+      (~$0.05–0.75/second depending on tier) and takes minutes. Needs an explicit go-ahead before
+      the first live run.
 
 **Exit criteria for this phase**: run the seeded 3-shot sequence through the full loop end-to-end
 from the command line (no UI yet) and get an `approved` sequence with a real revision history.
+Blocked on the Veo go-ahead above — everything else in the loop is ready for it.
 
 ## Phase 3 — Dashboard (Next.js)
 

@@ -20,13 +20,23 @@ export type QCVerdict = z.infer<typeof qcVerdictSchema>;
 export const qcSeveritySchema = z.enum(["info", "warning", "critical"]);
 export type QCSeverity = z.infer<typeof qcSeveritySchema>;
 
+/** Veo 3.1 call parameters. An explicit shape, not a loose record — Gemini's
+ *  Developer API structured-output mode rejects open-ended objects outright,
+ *  and an explicit shape is the right call anyway. */
+export const generationSettingsSchema = z.object({
+  model: z.string(),
+  seed: z.number().int().optional(),
+  imageRefs: z.array(z.string()).default([]),
+});
+export type GenerationSettings = z.infer<typeof generationSettingsSchema>;
+
 /** Planner output: what a shot needs to preserve and how to generate it. */
 export const shotBriefSchema = z.object({
   shotCode: z.string(),
   invariants: z.array(z.string()),
   referenceAssetIds: z.array(z.string().uuid()),
   prompt: z.string(),
-  generationSettings: z.record(z.string(), z.unknown()),
+  generationSettings: generationSettingsSchema,
 });
 export type ShotBrief = z.infer<typeof shotBriefSchema>;
 
@@ -60,7 +70,7 @@ export const continuityFingerprintSchema = z.object({
   palette: z.array(z.string()),
   approvedReferenceFrames: z.array(z.string()),
   generationPrompt: z.string(),
-  generationSettings: z.record(z.string(), z.unknown()),
+  generationSettings: generationSettingsSchema,
   qcFindings: z.array(qcFindingSchema),
   supervisorNotes: z.string(),
   revisionReason: z.string().optional(),
