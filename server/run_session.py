@@ -17,8 +17,15 @@ hand. Defaults to reading the version's video from MinIO; --video-override
 points it at a local file instead (e.g. while iterating before deciding
 whether a fix is worth re-running the critic against real storage).
 
+--reuse-prompt-from-version N generates a genuinely NEW version, but with
+the exact prompt/settings text from an existing version instead of a fresh
+planning call — isolates whether a defect is systematic (same prompt,
+same result) or just Veo's inherent run-to-run stochasticity (same prompt,
+different result). Still a real, billed Veo call.
+
 Usage: uv run --directory server python run_session.py --shot SH020 --goal "..."
        uv run --directory server python run_session.py --shot SH020 --recritique-version 3
+       uv run --directory server python run_session.py --shot SH020 --reuse-prompt-from-version 5
 """
 
 import argparse
@@ -36,7 +43,7 @@ from agents.planner import plan_shot
 from agents.revision import revise_shot
 from db.models import ReferenceAsset, Shot
 from db.postgres import Database
-from models.contracts import QCFinding, ShotStatus
+from models.contracts import GenerationSettings, QCFinding, ShotBrief, ShotStatus
 from storage.minio_client import get_bytes, get_client, put_bytes
 
 
@@ -84,6 +91,69 @@ async def _apply_result(
     )
 
     return status
+
+
+async def _generate_store_and_critique(
+    db: Database,
+    shot: Shot,
+    shot_code: str,
+    reference_assets: list[ReferenceAsset],
+    brief: ShotBrief,
+    run_id: str,
+) -> None:
+    """Shared tail end of both `run` and `reuse_prompt`: real Veo call,
+    real storage, real critique, real approval evaluation."""
+    existing_versions = await db.get_shot_versions(shot.id)
+    next_version = max((v.version_number for v in existing_versions), default=0) + 1
+
+    print(f"generating v{next_version} with {brief.generation_settings.model} (this takes a few minutes)...")
+    video_bytes = await generate_shot_version(brief=brief, reference_images={}, run_id=run_id)
+    print(f"video ready: {len(video_bytes)} bytes.")
+
+    minio_client = get_client()
+    bucket = os.environ.get("MINIO_BUCKET", "dailies")
+    video_key = f"gen/{shot_code}/v{next_version:03d}.mp4"
+    put_bytes(minio_client, bucket, video_key, video_bytes, content_type="video/mp4")
+    print(f"stored at {bucket}/{video_key}")
+
+    shot_version = await db.insert_shot_version(
+        shot_id=shot.id,
+        version_number=next_version,
+        generation_prompt=brief.prompt,
+        generation_settings=brief.generation_settings.model_dump(),
+        video_asset_url=video_key,
+        status="candidate",
+    )
+
+    print("critiquing...")
+    continuity_context = (
+        "Invariants this shot must preserve:\n" + "\n".join(f"- {i}" for i in brief.invariants)
+        if brief.invariants
+        else f"Generation prompt for this version (encodes what it needed to preserve):\n{brief.prompt}"
+    )
+    findings = await critique_shot_version(
+        video_bytes=video_bytes,
+        video_mime_type="video/mp4",
+        reference_assets=reference_assets,
+        reference_images={},
+        continuity_context=continuity_context,
+        run_id=run_id,
+        shot_version_ref=f"{shot_code}:v{next_version}",
+    )
+    status = await _apply_result(db, shot, shot_version.id, next_version, findings, run_id)
+
+    if status in ("revise", "needs_human"):
+        print("revising (instruction only, not re-generating)...")
+        instruction = await revise_shot(
+            shot_code=shot_code,
+            prior_version=next_version,
+            prior_prompt=brief.prompt,
+            findings=findings,
+            reference_assets=reference_assets,
+            run_id=run_id,
+        )
+        print(f"next attempt should target v{instruction.target_version}:")
+        print(f"  {instruction.revised_prompt[:200]}...")
 
 
 async def recritique(shot_code: str, version_number: int, video_override: Path | None) -> None:
@@ -140,18 +210,48 @@ async def recritique(shot_code: str, version_number: int, video_override: Path |
     await db.close()
 
 
+async def reuse_prompt(shot_code: str, source_version: int) -> None:
+    """Generates a genuinely new version with the exact prompt/settings text
+    from an existing version — no new planning call. Isolates whether a
+    defect is systematic or just run-to-run stochasticity. Still a real,
+    billed Veo call and a real new shot_versions row."""
+    db = Database()
+    await db.connect()
+
+    shot, _, _, reference_assets = await _load_show_shot(db, shot_code)
+    versions = await db.get_shot_versions(shot.id)
+    source = next((v for v in versions if v.version_number == source_version), None)
+    if source is None:
+        raise SystemExit(f"{shot_code} has no v{source_version}")
+    if source.generation_settings is None:
+        raise SystemExit(f"{shot_code} v{source_version} has no stored generation_settings")
+
+    brief = ShotBrief(
+        shot_code=shot_code,
+        invariants=[],
+        reference_asset_ids=[],
+        prompt=source.generation_prompt,
+        generation_settings=GenerationSettings.model_validate(source.generation_settings),
+    )
+    run_id = new_run_id()
+    print(f"run_id={run_id}")
+    print(f"reusing v{source_version}'s exact prompt verbatim, no new planning call")
+    print(f"prompt: {brief.prompt[:150]}...")
+
+    await _generate_store_and_critique(db, shot, shot_code, reference_assets, brief, run_id)
+    await db.close()
+
+
 async def run(shot_code: str, scene_goal: str) -> None:
     """Plans, generates (real Veo call), stores, and critiques a brand new version."""
     db = Database()
     await db.connect()
 
     shot, show_name, sequence_code, reference_assets = await _load_show_shot(db, shot_code)
-    existing_versions = await db.get_shot_versions(shot.id)
-    next_version = max((v.version_number for v in existing_versions), default=0) + 1
 
     run_id = new_run_id()
     print(f"run_id={run_id}")
-    print(f"planning {shot_code} v{next_version}...")
+    print("planning...")
 
     brief = await plan_shot(
         show_name=show_name,
@@ -167,68 +267,25 @@ async def run(shot_code: str, scene_goal: str) -> None:
     # no uploaded bytes) — this falls back to text-only generation. See
     # BUILD_PLAN.md Phase 2 for the follow-up (extract stills from an
     # approved shot as real image references).
-    print(f"generating with {brief.generation_settings.model} (this takes a few minutes)...")
-    video_bytes = await generate_shot_version(brief=brief, reference_images={}, run_id=run_id)
-    print(f"video ready: {len(video_bytes)} bytes.")
-
-    minio_client = get_client()
-    bucket = os.environ.get("MINIO_BUCKET", "dailies")
-    video_key = f"gen/{shot_code}/v{next_version:03d}.mp4"
-    put_bytes(minio_client, bucket, video_key, video_bytes, content_type="video/mp4")
-    print(f"stored at {bucket}/{video_key}")
-
-    shot_version = await db.insert_shot_version(
-        shot_id=shot.id,
-        version_number=next_version,
-        generation_prompt=brief.prompt,
-        generation_settings=brief.generation_settings.model_dump(),
-        video_asset_url=video_key,
-        status="candidate",
-    )
-
-    print("critiquing...")
-    continuity_context = "Invariants this shot must preserve:\n" + "\n".join(
-        f"- {i}" for i in brief.invariants
-    )
-    findings = await critique_shot_version(
-        video_bytes=video_bytes,
-        video_mime_type="video/mp4",
-        reference_assets=reference_assets,
-        reference_images={},
-        continuity_context=continuity_context,
-        run_id=run_id,
-        shot_version_ref=f"{shot_code}:v{next_version}",
-    )
-    status = await _apply_result(db, shot, shot_version.id, next_version, findings, run_id)
-
-    if status in ("revise", "needs_human"):
-        print("revising (instruction only, not re-generating)...")
-        instruction = await revise_shot(
-            shot_code=shot_code,
-            prior_version=next_version,
-            prior_prompt=brief.prompt,
-            findings=findings,
-            reference_assets=reference_assets,
-            run_id=run_id,
-        )
-        print(f"next attempt should target v{instruction.target_version}:")
-        print(f"  {instruction.revised_prompt[:200]}...")
-
+    await _generate_store_and_critique(db, shot, shot_code, reference_assets, brief, run_id)
     await db.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--shot", required=True)
-    parser.add_argument("--goal", help="Required unless --recritique-version is given.")
+    parser.add_argument("--goal", help="Required unless --recritique-version/--reuse-prompt-from-version is given.")
     parser.add_argument("--recritique-version", type=int, default=None)
+    parser.add_argument("--reuse-prompt-from-version", type=int, default=None)
     parser.add_argument("--video-override", type=Path, default=None)
     args = parser.parse_args()
 
     if args.recritique_version is not None:
         asyncio.run(recritique(args.shot, args.recritique_version, args.video_override))
+    elif args.reuse_prompt_from_version is not None:
+        asyncio.run(reuse_prompt(args.shot, args.reuse_prompt_from_version))
     else:
         if not args.goal:
-            raise SystemExit("--goal is required unless --recritique-version is given")
+            raise SystemExit("--goal is required unless --recritique-version or --reuse-prompt-from-version is given")
         asyncio.run(run(args.shot, args.goal))
     sys.exit(0)
