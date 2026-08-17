@@ -26,14 +26,16 @@ MinIO · Gemini (planning + multimodal critique) · Veo 3.1 (generation)
 | ClickHouse | `8124` (HTTP) / `9005` (TCP) |
 | MinIO | `9010` (API) / `9011` (console) |
 
-Reserved in `~/dev/ports.md` under `ArcEngine (~/dev/blockbuster/arc-engine)` — same block used
-by this directory's previous occupant; unchanged.
+Reserved in `~/dev/ports.md` under `Dailies (~/dev/arc-engine)` — same port block used by this
+directory's previous occupant; unchanged.
 
 ## Quickstart
 
 ```bash
 pnpm install
+uv sync --directory server
 docker compose up -d          # Postgres, ClickHouse, MinIO
+cp .env.example .env          # fill in Google Cloud / Vertex credentials
 pnpm dev                      # web (3210) + api (8091)
 ```
 

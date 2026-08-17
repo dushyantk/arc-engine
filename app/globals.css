@@ -1,18 +1,11 @@
-/*
-  Dailies design tokens — Lab Bench.
-  Dark-only by product decision: no .dark class, no prefers-color-scheme branching.
-  See ../docs/DESIGN_SYSTEM.md for the rationale and the color/type/shape tables.
-
-  This is a reference copy. The live file is app/globals.css — components.json
-  points shadcn's `add` command at app/globals.css directly, so new components
-  pick up these tokens automatically. Keep the two in sync by hand if either
-  changes; don't let shadcn regenerate this file (it will pick the wrong one
-  again if both files start with `@import "tailwindcss"`).
-*/
-
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+
+/*
+  Dailies design tokens — Lab Bench. Dark-only by product decision: no .dark
+  class, no prefers-color-scheme branching. See docs/DESIGN_SYSTEM.md.
+*/
 
 :root {
   --radius: 0.25rem; /* 4px, becomes radius-lg below */

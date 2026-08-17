@@ -1,0 +1,21 @@
+[project]
+name = "dailies-server"
+version = "0.1.0"
+description = "Agent runtime for Dailies: planner, generation adapter, critic, revision agent, approval gate."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true

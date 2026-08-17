@@ -55,9 +55,12 @@ Two faces, one pairing, mono doing structural work rather than decoration:
   labels. This is a real functional choice, not a stylistic one — the product is timecode- and
   version-number-heavy, and mono keeps those columns aligned and legible.
 
-Real font, real package, no system-font fallback in production — the exploration artifact used
-system stacks because artifacts can't load webfonts; the actual app uses Geist properly through
-`next/font`.
+Real font, no system-font fallback in production — the exploration artifact used system stacks
+because artifacts can't load webfonts. The actual app uses `create-next-app`'s built-in
+`next/font/google` Geist Sans / Geist Mono (no separate `geist` package needed, it's wired in by
+the scaffold), exposed as `--font-geist-sans` / `--font-geist-mono` and mapped to `--font-sans` /
+`--font-mono` in `app/globals.css`. `--font-heading` is mapped to the mono variable, not sans —
+that's what makes shadcn components default to mono headings automatically.
 
 ## Shape
 
@@ -73,13 +76,17 @@ Sharp, deliberately smaller than shadcn's default radius scale:
 No shadows for elevation. Dark UIs don't read shadows well; elevation comes from the
 `card`/`background` lightness step plus a 1px `border`, same as the exploration mockups.
 
-## Setup notes (Phase 0)
+## Setup notes (Phase 0 — done)
 
-1. `pnpm add geist` — Geist Sans + Geist Mono via `next/font/sans` / `next/font/mono`, exposed as
-   `--font-sans` / `--font-mono` through the font object's `.variable`.
-2. `npx shadcn@latest init` — when prompted, `cssVariables: true`, base color `neutral` (closest
-   starting point before override).
-3. Replace the generated `:root` token block in `app/globals.css` with
-   [`design/globals.css`](../design/globals.css) in this repo — it's the real CSS for the table
-   above, ready to paste in as-is.
-4. Do not add a `.dark` class or a theme toggle without a product decision to add a light mode.
+1. `create-next-app` already wires Geist Sans / Geist Mono via `next/font/google`. No extra font
+   package needed.
+2. `shadcn init` picks its target CSS file by scanning for `@import "tailwindcss"` — with both
+   `app/globals.css` and this repo's `design/globals.css` present, it grabbed the wrong one and
+   overwrote it with generic oklch defaults. Fixed by pointing `components.json`'s
+   `tailwind.css` at `app/globals.css` explicitly and hand-writing the real tokens into both
+   files. If you ever re-run `shadcn init`, check `components.json` first.
+3. `app/globals.css` and [`design/globals.css`](../design/globals.css) are kept identical by
+   hand. `design/globals.css` is the reference copy with the fuller comment header; the live file
+   `shadcn add` writes into is `app/globals.css`.
+4. No `.dark` class, no theme toggle. Don't add one without a product decision to ship a light
+   mode.

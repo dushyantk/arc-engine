@@ -18,7 +18,8 @@ Closed loop: **Plan → Generate → Watch → Critique → Revise → Generate 
 ## 2. Non-goals (explicit, so nobody drifts back to the old shape)
 
 - Not a viewer-choice / branching-narrative engine. That was the previous occupant of this
-  directory (`../arc-engine-archive/`, "FateForge Multiverse Engine") and it is dead. Do not
+  directory when it lived at `~/dev/blockbuster/arc-engine` (archived at
+  `~/dev/blockbuster/arc-engine-archive/`, "FateForge Multiverse Engine") and it is dead. Do not
   resurrect choice trees, live streaming, or biometric input here.
 - No multi-tenant auth / billing for beta. Single operator, local/demo deployment. If this
   becomes a real SaaS later, auth is an additive layer on top of the domain model below, not a
@@ -223,7 +224,7 @@ SQ010_SH030/
 | Vision / critique / planning | Gemini 3 Pro (critic) / Flash (planner) | multimodal video understanding, structured output |
 | ORM | Drizzle | matches existing project convention |
 
-## 11. Ports (already reserved, `~/dev/ports.md`, path `~/dev/blockbuster/arc-engine`)
+## 11. Ports (already reserved, `~/dev/ports.md`, path `~/dev/arc-engine`)
 
 | Service | Port |
 | --- | --- |
@@ -234,5 +235,5 @@ SQ010_SH030/
 | ClickHouse HTTP / TCP | 8124 / 9005 |
 | MinIO API / console | 9010 / 9011 |
 
-No new ports needed — this is the same directory the old ArcEngine occupied; ports.md gets a
-description update only, not a renumber.
+Same port block as when this project lived at `~/dev/blockbuster/arc-engine`; ports.md tracks the
+path change, not a renumber.
