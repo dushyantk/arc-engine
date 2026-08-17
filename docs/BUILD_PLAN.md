@@ -40,13 +40,19 @@ system design these phases implement.
 
 ## Phase 1 — Domain model & production memory
 
-- [ ] Drizzle schema: `shows`, `sequences`, `shots`, `shot_versions`, `reference_assets`,
-      `approval_events` (Postgres)
-- [ ] ClickHouse DDL: `continuity_fingerprints`, `qc_findings`, `agent_decision_log`
-- [ ] Zod schemas: `ShotBrief`, `ContinuityFingerprint`, `QCFinding`, `RevisionInstruction`
-- [ ] Pydantic v2 mirrors in `server/models/`
-- [ ] Seed script: the railway-station demo scene (3 shots, character Maya, red suitcase) as
-      canonical fixture data — this becomes the actual demo, not a throwaway seed
+- [x] Drizzle schema: `shows`, `sequences`, `shots`, `shot_versions`, `reference_assets`,
+      `approval_events` (Postgres) — [`db/schema.ts`](../db/schema.ts), pushed via `pnpm db:push`
+- [x] ClickHouse DDL: `continuity_fingerprints`, `qc_findings`, `agent_decision_log` —
+      [`server/clickhouse/schema.sql`](../server/clickhouse/schema.sql), applied via
+      `pnpm ch:migrate`, verified through the `clickhouse-local` MCP
+- [x] Zod schemas: `ShotBrief`, `ContinuityFingerprint`, `QCFinding`, `RevisionInstruction` —
+      [`lib/schemas/index.ts`](../lib/schemas/index.ts)
+- [x] Pydantic v2 mirrors in `server/models/contracts.py`
+- [x] Seed script: the railway-station demo scene (Maya, red suitcase, SH010/SH020/SH030) —
+      [`scripts/seed.ts`](../scripts/seed.ts) (`pnpm db:seed`). Full version history in Postgres
+      (6 shot_versions across 3 shots); continuity fingerprints + QC findings in ClickHouse for
+      the 3 versions that matter to the demo narrative. SH020 is deliberately left in `revise` at
+      v002 — that's the shot the live agent session in Phase 2 picks up and carries to v003.
 
 ## Phase 2 — Generation & critique pipeline (the core loop)
 

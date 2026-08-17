@@ -9,7 +9,7 @@
         "CLICKHOUSE_USER": "default",
         "CLICKHOUSE_PASSWORD": "",
         "CLICKHOUSE_SECURE": "false",
-        "CLICKHOUSE_DATABASE": "default"
+        "CLICKHOUSE_DATABASE": "dailies"
       }
     }
   }

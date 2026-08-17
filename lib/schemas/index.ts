@@ -1,0 +1,82 @@
+import { z } from "zod";
+
+// Typed contracts crossing the Next.js <-> FastAPI boundary. Mirrored by hand
+// in server/models/contracts.py — see ARCHITECTURE.md section 5 for why these
+// are two hand-written definitions rather than one generated source.
+
+export const shotStatusSchema = z.enum([
+  "pending",
+  "generating",
+  "reviewing",
+  "revise",
+  "approved",
+  "needs_human",
+]);
+export type ShotStatus = z.infer<typeof shotStatusSchema>;
+
+export const qcVerdictSchema = z.enum(["pass", "fail", "warning"]);
+export type QCVerdict = z.infer<typeof qcVerdictSchema>;
+
+export const qcSeveritySchema = z.enum(["info", "warning", "critical"]);
+export type QCSeverity = z.infer<typeof qcSeveritySchema>;
+
+/** Planner output: what a shot needs to preserve and how to generate it. */
+export const shotBriefSchema = z.object({
+  shotCode: z.string(),
+  invariants: z.array(z.string()),
+  referenceAssetIds: z.array(z.string().uuid()),
+  prompt: z.string(),
+  generationSettings: z.record(z.string(), z.unknown()),
+});
+export type ShotBrief = z.infer<typeof shotBriefSchema>;
+
+/** One continuity axis check on a shot version. */
+export const qcFindingSchema = z.object({
+  category: z.string(),
+  verdict: qcVerdictSchema,
+  frameRangeStart: z.number().int().nonnegative().optional(),
+  frameRangeEnd: z.number().int().nonnegative().optional(),
+  description: z.string(),
+  severity: qcSeveritySchema,
+});
+export type QCFinding = z.infer<typeof qcFindingSchema>;
+
+/** Extracted continuity state for one shot/version. Mirrors the ClickHouse
+ *  continuity_fingerprints row exactly (see server/clickhouse/schema.sql). */
+export const continuityFingerprintSchema = z.object({
+  show: z.string(),
+  sequence: z.string(),
+  shot: z.string(),
+  version: z.number().int().positive(),
+  characterIdentity: z.string(),
+  costume: z.string(),
+  props: z.string(),
+  environment: z.string(),
+  timeOfDay: z.string(),
+  lightingDirection: z.string(),
+  camera: z.string(),
+  lensLanguage: z.string(),
+  screenDirection: z.string(),
+  palette: z.array(z.string()),
+  approvedReferenceFrames: z.array(z.string()),
+  generationPrompt: z.string(),
+  generationSettings: z.record(z.string(), z.unknown()),
+  qcFindings: z.array(qcFindingSchema),
+  supervisorNotes: z.string(),
+  revisionReason: z.string().optional(),
+  approvalStatus: shotStatusSchema,
+  extractedAt: z.string().datetime(),
+});
+export type ContinuityFingerprint = z.infer<typeof continuityFingerprintSchema>;
+
+/** Critic's FAILed findings turned into concrete regeneration instructions. */
+export const revisionInstructionSchema = z.object({
+  shotCode: z.string(),
+  targetVersion: z.number().int().positive(),
+  lockedReferenceAssetIds: z.array(z.string().uuid()),
+  removeElements: z.array(z.string()),
+  preserveElements: z.array(z.string()),
+  revisedPrompt: z.string(),
+  reason: z.string(),
+});
+export type RevisionInstruction = z.infer<typeof revisionInstructionSchema>;
