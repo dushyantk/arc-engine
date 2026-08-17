@@ -29,10 +29,14 @@ system design these phases implement.
       keys + bucket, `GOOGLE_CLOUD_PROJECT` / `GOOGLE_APPLICATION_CREDENTIALS`, `AGENT_RUNTIME_URL`
 - [x] Project `CLAUDE.md`: product identity + non-goals, so no future session drifts back to the
       viewer-choice concept
-- [ ] Connect the official ClickHouse MCP server to this session/repo and confirm a live query
-      against the docker-compose ClickHouse instance — this is a hard requirement for the
-      production-memory feature, not optional tooling. Needs `claude mcp add` run interactively;
-      not something an agent session can do unattended.
+- [x] Connect the official ClickHouse MCP to this repo. Turned out to be two different things:
+      the ClickHouse Cloud management MCP got connected first (org/service/billing tools, no
+      Docker access, and the org has zero provisioned services) — kept as-is per decision below,
+      not used for this project. The actual dev-tooling connection is the self-hostable
+      `ClickHouse/mcp-clickhouse` server, configured in [`.mcp.json`](../.mcp.json) against the
+      docker-compose instance (`localhost:8124`) and verified with a live query (server 24.10.2.80,
+      `SHOW DATABASES` returned real results). New Claude Code sessions in this repo will prompt to
+      approve it once.
 
 ## Phase 1 — Domain model & production memory
 
@@ -47,7 +51,10 @@ system design these phases implement.
 ## Phase 2 — Generation & critique pipeline (the core loop)
 
 - [ ] Reference asset ingestion: upload character/prop/environment refs → MinIO + Postgres, lock
-- [ ] Planner agent: scene brief + ClickHouse continuity query → `ShotBrief` per shot
+- [ ] Planner agent: scene brief + ClickHouse continuity query → `ShotBrief` per shot. The query
+      itself goes through an MCP client in the FastAPI runtime calling `mcp-clickhouse` (same
+      server configured in `.mcp.json` for dev), not a bare `clickhouse-connect` call — that's
+      the actual hackathon-track requirement, distinct from the dev-tooling connection above
 - [ ] Veo 3.1 generation adapter: image-conditioned + first/last-frame calls → `shot_versions` row
 - [ ] Supervisor/Critic agent: multimodal comparison against refs + neighbor shots → `QCFinding[]`,
       explicitly prompted to separate creative variation from generative defect
@@ -98,3 +105,9 @@ from the command line (no UI yet) and get an `approved` sequence with a real rev
   Gemini/Veo SDKs and the async loop is easier there than in a route handler.
 - **Product surface name is "Dailies"; directory/ports stay `arc-engine`.** No path rename, no
   ports.md renumber — same reserved block, new description.
+- **ClickHouse stays local (docker-compose), not ClickHouse Cloud.** A ClickHouse Cloud
+  organization got connected via MCP on 2026-08-17 but has zero provisioned services and no
+  "create service" tool exists to provision one unattended — that would need the ClickHouse Cloud
+  console. Decided to keep the free, already-working Docker instance rather than take on a cloud
+  dependency for a beta/demo. Revisit before the actual submission if "runs against localhost"
+  reads as less credible than a Cloud service to whoever's judging it.

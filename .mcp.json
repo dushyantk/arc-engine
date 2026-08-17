@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "clickhouse-local": {
+      "command": "uv",
+      "args": ["run", "--with", "mcp-clickhouse", "--python", "3.10", "mcp-clickhouse"],
+      "env": {
+        "CLICKHOUSE_HOST": "localhost",
+        "CLICKHOUSE_PORT": "8124",
+        "CLICKHOUSE_USER": "default",
+        "CLICKHOUSE_PASSWORD": "",
+        "CLICKHOUSE_SECURE": "false",
+        "CLICKHOUSE_DATABASE": "default"
+      }
+    }
+  }
+}
