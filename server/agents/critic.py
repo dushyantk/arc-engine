@@ -38,13 +38,23 @@ shot (e.g. no on-screen text to evaluate for temporal_stability).
 For hero_prop specifically, do not judge it from the video alone — continuous video playback has
 been found, by direct verification against ground truth, to miss a prop that duplicates across
 both hands for roughly a second and then settles into the wrong one. Instead: go through the
-{frame_count} labeled still frames IN ORDER and explicitly state, for every single one, which hand
-(or hands — a prop appearing in both at once is itself a defect, not a resolved state) the prop is
-in. Then report the exact pair of consecutive labeled frames between which anything changes. If
-the prop's hand is the same in every one of the {frame_count} frames, say so explicitly and mark
-it pass. This check is most likely to fail at the exact moment the character does something else
-with their other hand or body — reaching into a pocket, touching their hair, gesturing — so pay
-particular attention to the frames right around any such action.
+{frame_count} labeled still frames IN ORDER and explicitly state, for every single one, which side
+of the SCREEN the prop is on: **screen-left** or **screen-right** — the frame position exactly as
+you see it, not an inference about the character's own anatomical hand or which way she's facing.
+Screen-left/screen-right is what you can directly verify by looking; "her left hand" requires you
+to first work out her orientation, which is exactly the kind of inference that produces
+inconsistent reports between runs. Report position as "screen-left"/"screen-right" (or "both" if
+the prop is visible on both sides at once — itself a defect, not a resolved state), and only note
+the anatomical hand as secondary context if it's unambiguous. Then report the exact pair of
+consecutive labeled frames between which anything changes. If the prop is on the same screen side
+in every one of the {frame_count} frames, say so explicitly and mark it pass. This check is most
+likely to fail at the exact moment the character does something else with their other hand or
+body — reaching into a pocket, touching their hair, gesturing — so pay particular attention to the
+frames right around any such action.
+
+For screen_direction specifically, also report in screen-left/screen-right terms: does the
+character's overall movement or facing go from screen-left to screen-right (or vice versa) as
+specified in the continuity context, not "her left to her right" or similar anatomical framing.
 
 For every other category, watch the full video continuously — never judge a category from only
 its first or last frame; a defect that only exists in the middle of the shot is still a defect.

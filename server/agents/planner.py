@@ -51,14 +51,50 @@ Available locked reference assets (use their IDs in reference_asset_ids, pick on
 shot actually needs):
 {reference_assets}
 
-Known Veo failure mode to defend against in the prompt text: a hand-held prop can teleport or
-switch hands partway through a shot, most often at the exact moment the character does something
-else with their other hand or body — reaching into a pocket, touching their hair, gesturing. If
-the scene goal has a hand-held prop AND any such secondary action, the generated prompt MUST say
-explicitly that the prop stays gripped in its original hand for the entire duration, unaffected by
-the other hand's movement (e.g. "the red suitcase remains gripped in her right hand throughout,
-even as her left hand moves to her pocket") — not just that she's holding it. Add this as its own
-explicit invariant whenever this situation applies, not folded into a general costume/prop note.
+Known Veo failure modes to defend against in the prompt text — each was found by generating real
+footage and checking it by hand, not theorized:
+
+1. **Mid-shot hand-swap/teleport.** A hand-held prop can change hands partway through a shot, most
+   often at the exact moment the character does something else with their other hand or body —
+   reaching into a pocket, touching their hair, gesturing. If the scene has a hand-held prop AND
+   any such secondary action, state explicitly that the prop stays gripped in its original hand
+   for the entire duration, unaffected by the other hand's movement.
+
+2. **Anatomical left/right is unreliable, especially combined with (1).** "Right hand" is
+   self-referential and ambiguous to a model that doesn't reliably track character-relative vs.
+   screen-relative framing — a character facing camera has her anatomical right hand on the
+   viewer's left, and this flips constantly depending on which way she faces or turns. Mentioning
+   two hands with two different actions in one sentence (needed to satisfy failure mode 1) also
+   raises the odds of the model swapping which hand does which action.
+
+   Fix: use standard film-continuity vocabulary — **screen-left** / **screen-right** — for every
+   spatial instruction involving hands, props, or blocking. Screen-left/screen-right describe
+   frame position exactly as the viewer sees it and never change with the character's facing
+   direction or movement, unlike "her left"/"her right". State the anatomical hand once for
+   characterization, then govern the actual generation instruction with screen-left/screen-right,
+   e.g.: "holds the suitcase in her right hand, positioned screen-right for the duration of the
+   shot; her left hand (screen-left) is free to move to her pocket without affecting the prop."
+   Every invariant and the prompt text itself should describe blocking, movement (e.g. "screen-left
+   to screen-right", not just "left to right"), and hand/prop position in screen-left/screen-right
+   terms first, with anatomical side as secondary context only. Keep the two hands' actions in
+   separate sentences rather than one combined clause regardless.
+
+3. **"Static shot" can bleed into "static subject."** This is real cinematography shorthand for a
+   locked-off, unmoving camera — it says nothing about whether the character moves. A model
+   without deep cinematography grounding may apply "static" to the whole scene, including the
+   subject, and render the character standing still even when the prompt separately asks for
+   movement. Never write "static shot of [character] walking/moving" as one description — say the
+   camera is fixed/locked-off/unmoving in its own clause, and describe the character's motion in a
+   separate clause with no shared modifier between them.
+
+4. **Character appearance drifts between generations when underspecified.** There is currently no
+   real reference photography — generation is text-only, not image-conditioned, regardless of what
+   reference_asset_ids get listed below. If the continuity research's physical description of a
+   recurring character is thin (e.g. missing ethnicity, hair color, skin tone, build, age), do not
+   silently pad it with invented specifics that will vary run to run — repeat exactly what the
+   continuity research states, verbatim where possible, and add a note in the invariants list that
+   physical description beyond what's given is not yet grounded and will vary between generations
+   until real reference imagery exists.
 
 Produce a ShotBrief with these exact fields: shot_code (string), invariants (a list of specific
 things that must NOT change from the continuity research above — be concrete, not generic),
