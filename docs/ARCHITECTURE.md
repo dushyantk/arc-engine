@@ -175,6 +175,10 @@ Model split (verify exact API model IDs at implementation time — these move):
 Not a hackathon toy UI. Dashboard-grade: real empty/loading/error states, real hierarchy, real
 spacing — this is a piece of the portfolio, not a demo throwaway.
 
+Visual design system is locked: **Lab Bench** (cool slate, sharp corners, mono-forward headings
+and data, single blue accent, semantic status colors on distinct hues). Landing page and app share
+it. Full spec: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), tokens: [`design/globals.css`](../design/globals.css).
+
 - **Sequence view** — shot thumbnails, status badges, live agent-session indicator.
 - **Shot detail** — version history, scrubber with timestamp-anchored QC notes overlaid on the
   video, reference panel, provenance/lineage panel.

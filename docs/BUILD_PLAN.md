@@ -10,13 +10,18 @@ system design these phases implement.
 
 - [x] Old "FateForge Multiverse" concept archived to `../arc-engine-archive/` (done prior to this
       plan — not this session's action, not touched here)
-- [ ] Scaffold Next.js app (App Router, TypeScript, Tailwind, pnpm-enforced via `preinstall`)
+- [x] Repo re-initialized fresh at `~/dev/arc-engine`, docs moved to `docs/`
+- [x] Design system locked: **Lab Bench** — see [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) and
+      [`design/globals.css`](../design/globals.css)
+- [ ] Scaffold Next.js app (App Router, TypeScript, Tailwind v4, pnpm-enforced via `preinstall`)
+- [ ] `pnpm add geist`, `npx shadcn@latest init` (cssVariables: true, base color neutral), then
+      replace the generated token block in `app/globals.css` with `design/globals.css`
 - [ ] Scaffold FastAPI sidecar (`server/`)
 - [ ] `docker-compose.yml`: Postgres (5451), ClickHouse (8124/9005), MinIO (9010/9011)
-- [ ] Update `~/dev/ports.md` ArcEngine entry description to reflect Dailies (ports unchanged)
+- [x] Update `~/dev/ports.md` ArcEngine entry description to reflect Dailies (ports unchanged)
 - [ ] `.env.example`: `DATABASE_URL`, `CLICKHOUSE_URL`, `GOOGLE_APPLICATION_CREDENTIALS` /
       Vertex project config, `MINIO_ENDPOINT` + keys
-- [ ] Project `CLAUDE.md`: product identity + non-goals, so no future session drifts back to the
+- [x] Project `CLAUDE.md`: product identity + non-goals, so no future session drifts back to the
       viewer-choice concept
 - [ ] Connect the official ClickHouse MCP server to this session/repo and confirm a live query
       against the docker-compose ClickHouse instance — this is a hard requirement for the

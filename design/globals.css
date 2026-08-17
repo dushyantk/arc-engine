@@ -1,0 +1,97 @@
+/*
+  Dailies design tokens — Lab Bench.
+  Dark-only by product decision: no .dark class, no prefers-color-scheme branching.
+  See ../docs/DESIGN_SYSTEM.md for the rationale and the color/type/shape tables.
+
+  Drop this :root block into app/globals.css after `npx shadcn@latest init`,
+  replacing the generated neutral-gray tokens. Keep the @theme inline block —
+  it's what maps these CSS variables onto Tailwind's color/radius/font utilities.
+*/
+
+@import "tailwindcss";
+
+:root {
+  --radius: 0.25rem; /* 4px, becomes radius-lg below */
+
+  --background: #0a0d12;
+  --foreground: #e6eaf0;
+
+  --card: #10141b;
+  --card-foreground: #e6eaf0;
+  --popover: #10141b;
+  --popover-foreground: #e6eaf0;
+
+  --primary: #4fa3d9;
+  --primary-foreground: #0a0d12;
+
+  --secondary: #151a22;
+  --secondary-foreground: #e6eaf0;
+
+  --muted: #10141b;
+  --muted-foreground: #7c8797;
+
+  /* shadcn's --accent token: subtle hover/active background. NOT the brand accent (that's --primary). */
+  --accent: #151a22;
+  --accent-foreground: #e6eaf0;
+
+  --destructive: #e0554f;
+  --destructive-foreground: #0a0d12;
+
+  --border: #232a35;
+  --input: #232a35;
+  --ring: #4fa3d9;
+
+  /* product-specific semantic tokens — not part of shadcn's default set */
+  --success: #45c98a;
+  --success-foreground: #0a0d12;
+  --warning: #e0a83d;
+  --warning-foreground: #0a0d12;
+  --info: #8890a6;
+  --info-foreground: #0a0d12;
+
+  --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px); /* 0px  — badges, pills, tags */
+  --radius-md: calc(var(--radius) - 2px); /* 2px  — shot cards, list rows */
+  --radius-lg: var(--radius);             /* 4px  — panels, dialogs */
+  --radius-xl: calc(var(--radius) + 4px); /* 8px  — full-screen overlays only */
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
