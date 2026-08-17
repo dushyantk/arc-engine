@@ -119,11 +119,17 @@ judgment. Full narrative: `generations/LEDGER.md`.
 **Exit criteria for this phase**: run the seeded 3-shot sequence through the full loop end-to-end
 from the command line (no UI yet) and get an `approved` sequence with a real revision history.
 
-**Status: mechanism proven, sequence not yet fully approved.** SH020 went through one real
-plan → generate → critique → revise cycle and correctly landed on `revise`, not `approved` — the
-loop works, but getting the actual sequence to a real `approved` state means paying for more
-generation rounds (v004+). Not run yet; each attempt is its own real cost, so further rounds wait
-for another explicit go-ahead rather than looping automatically.
+**Status: mechanism thoroughly proven, SH020 not yet approved.** Six real generations now
+(v001–v006, four of them real Veo calls made this session: v003–v006), a real root-cause
+investigation into three separate defect classes (hand laterality, character appearance drift,
+subject-vs-camera motion), a real fix verified to work (screen-left/screen-right vocabulary,
+exclude-vs-blur framing), and a reproducibility test (`--reuse-prompt-from-version`) that separated
+genuine systematic defects from one-off stochastic noise. SH020 is at `needs_human` — past the
+4-round cap, with one real remaining fail (the background clock, ~50% compliance so far on the
+"exclude from frame" instruction). Getting an actual `approved` sequence means either a stronger
+structural fix for the clock (camera framing that puts it out of frame by construction, not
+instruction) or accepting a human override. Full blow-by-blow: `generations/LEDGER.md`
+(gitignored). Total real spend so far: **$13.23**, 55 API calls, 4 real Veo generations.
 
 ## Phase 3 — Dashboard (Next.js)
 
