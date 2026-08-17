@@ -81,15 +81,31 @@ found and fixed along the way; see [`server/agents/planner.py`](../server/agents
 - [x] Added an outer retry/backoff layer ([`server/retry.py`](../server/retry.py)) after hitting
       transient 503s specifically on MCP-tool-enabled calls during verification — not just relying
       on the SDK's own internal retry.
-- [ ] **Veo 3.1 generation adapter**: [`server/agents/generation.py`](../server/agents/generation.py)
-      is written and type-checked against the real SDK (`generate_videos`, operation polling,
-      `VideoGenerationReferenceImage`) but **not yet executed** — a real call costs real money
-      (~$0.05–0.75/second depending on tier) and takes minutes. Needs an explicit go-ahead before
-      the first live run.
+- [x] **Veo 3.1 generation adapter**: [`server/agents/generation.py`](../server/agents/generation.py).
+      Run for real on 2026-08-17 (SH020 v003, `veo-3.1-generate-preview`, quality tier, ~$3.20,
+      user-approved). Two real bugs found on the first live call, both fixed: the Developer API
+      rejects the `seed` config field outright (Vertex-only), and downloading the result needs
+      `client.aio.files.download()` — a raw `httpx.get()` on the returned URI 302-redirects and
+      has no auth, so it fails. The already-billed video was recovered via the Files API by file
+      ID rather than re-generating.
+      [`run_session.py --reuse-video`](../server/run_session.py) now exists so the critic/approval
+      logic can be iterated on without paying for another generation each time.
+
+**Real result, not staged**: SH020 v003 fixed the original bug (suitcase stayed red, not brown —
+the planner's continuity-grounded prompt worked) but the critic caught two new issues: the
+suitcase in the wrong hand, and the background clock still legible with mutating hands. Approval
+gate correctly returned `revise`, not a rubber-stamped pass. Revision agent proposed a side-profile
+framing for v004 that plausibly fixes both at once. This is the real product behavior — continuity
+whack-a-mole — not a rigged demo.
 
 **Exit criteria for this phase**: run the seeded 3-shot sequence through the full loop end-to-end
 from the command line (no UI yet) and get an `approved` sequence with a real revision history.
-Blocked on the Veo go-ahead above — everything else in the loop is ready for it.
+
+**Status: mechanism proven, sequence not yet fully approved.** SH020 went through one real
+plan → generate → critique → revise cycle and correctly landed on `revise`, not `approved` — the
+loop works, but getting the actual sequence to a real `approved` state means paying for more
+generation rounds (v004+). Not run yet; each attempt is its own real cost, so further rounds wait
+for another explicit go-ahead rather than looping automatically.
 
 ## Phase 3 — Dashboard (Next.js)
 

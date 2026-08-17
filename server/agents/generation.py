@@ -10,7 +10,6 @@ when a caller explicitly invokes it, on purpose, knowing it costs money.
 import asyncio
 import time
 
-import httpx
 from google.genai import types
 
 from agents.decision_log import estimate_veo_cost, log_decision
@@ -44,9 +43,11 @@ async def generate_shot_version(
     operation = await client.aio.models.generate_videos(
         model=model,
         source=types.GenerateVideosSource(prompt=brief.prompt),
+        # No `seed`: the Gemini Developer API (not Vertex) rejects it for video
+        # generation outright. GenerationSettings.seed stays in the contract for
+        # a future Vertex path but isn't sent here.
         config=types.GenerateVideosConfig(
             reference_images=reference_images_list or None,
-            seed=brief.generation_settings.seed,
             duration_seconds=duration_seconds,
         ),
     )
@@ -69,10 +70,11 @@ async def generate_shot_version(
     if video.video_bytes:
         video_bytes = video.video_bytes
     elif video.uri:
-        async with httpx.AsyncClient() as http:
-            resp = await http.get(video.uri)
-            resp.raise_for_status()
-            video_bytes = resp.content
+        # client.aio.files.download(), not a raw httpx GET on video.uri: the download
+        # endpoint 302-redirects to a signed URL, and the request needs the SDK's own
+        # auth — a bare unauthenticated GET fails on both counts (found by hitting an
+        # unfollowed-redirect error on a real, already-billed generation call).
+        video_bytes = await client.aio.files.download(file=video.uri)
     else:
         raise RuntimeError(f"Veo generation result has neither bytes nor uri: {video}")
 

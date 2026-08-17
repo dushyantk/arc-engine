@@ -12,7 +12,6 @@ dependencies = [
     "asyncpg>=0.30",
     "minio>=7.2",
     "tenacity>=9.0",
-    "httpx>=0.28",
 ]
 
 [dependency-groups]
