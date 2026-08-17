@@ -51,6 +51,15 @@ Available locked reference assets (use their IDs in reference_asset_ids, pick on
 shot actually needs):
 {reference_assets}
 
+Known Veo failure mode to defend against in the prompt text: a hand-held prop can teleport or
+switch hands partway through a shot, most often at the exact moment the character does something
+else with their other hand or body — reaching into a pocket, touching their hair, gesturing. If
+the scene goal has a hand-held prop AND any such secondary action, the generated prompt MUST say
+explicitly that the prop stays gripped in its original hand for the entire duration, unaffected by
+the other hand's movement (e.g. "the red suitcase remains gripped in her right hand throughout,
+even as her left hand moves to her pocket") — not just that she's holding it. Add this as its own
+explicit invariant whenever this situation applies, not folded into a general costume/prop note.
+
 Produce a ShotBrief with these exact fields: shot_code (string), invariants (a list of specific
 things that must NOT change from the continuity research above — be concrete, not generic),
 reference_asset_ids (a list of UUIDs from the reference list above), prompt (the actual Veo

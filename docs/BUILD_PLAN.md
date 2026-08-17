@@ -105,6 +105,17 @@ spent but before `log_decision()` ran. Fixed by moving the log call to right aft
 operation itself succeeds, not after the download; the missing entry was backfilled by hand with
 the real cost. See `generations/LEDGER.md` for the full account.
 
+**A critic-reliability finding, architectural not cosmetic**: holistic "watch the video" judgment
+missed a real defect (a suitcase duplicating across both hands for ~1s, then settling into the
+wrong one) — once calling it a static "wrong hand" and, after a first tightening attempt, once
+missing it entirely. Verified by hand (frame-by-frame extraction) that the defect was real both
+times. The fix that actually worked: [`video_frames.py`](../server/video_frames.py) extracts N
+evenly-spaced labeled stills, and the critic prompt requires stating the prop's hand for *every*
+labeled frame in order rather than trusting continuous playback. Confirmed reliable across two
+independent re-runs. Lesson for any future QC category that tracks a discrete attribute over time
+(hand, position, held object): prefer explicit frame-by-frame comparison over holistic video
+judgment. Full narrative: `generations/LEDGER.md`.
+
 **Exit criteria for this phase**: run the seeded 3-shot sequence through the full loop end-to-end
 from the command line (no UI yet) and get an `approved` sequence with a real revision history.
 

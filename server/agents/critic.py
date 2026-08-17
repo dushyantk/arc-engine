@@ -14,13 +14,15 @@ from db.models import ReferenceAsset
 from genai_client import get_client
 from models.contracts import QCFinding
 from retry import call_with_retry
+from video_frames import extract_frames
 
 CRITIC_MODEL = "gemini-3.1-pro-preview"
+FRAME_COUNT = 12
 
 CRITIC_PROMPT_TEMPLATE = """You are the supervisor/critic agent for Dailies, a GenFX dailies
-review system. Watch the attached candidate shot and compare it against the reference images and
-continuity context below. You are looking for objective continuity breaks, not giving a general
-creative review.
+review system. You are given two things for the same shot: the full video, and {frame_count}
+still frames sampled at even intervals through it, each labeled with its timestamp. You are
+looking for objective continuity breaks, not giving a general creative review.
 
 Continuity context this shot must preserve:
 {continuity_context}
@@ -29,15 +31,32 @@ Reference images are attached and labeled by type and name.
 
 For each of these categories, produce a QCFinding: character_identity, costume_continuity,
 hero_prop, environment_continuity, screen_direction, lighting_continuity, temporal_stability
-(flickering, geometry crawl, deforming text/numerals, mutating faces). Skip a category only if it
-genuinely does not apply to this shot (e.g. no on-screen text to evaluate for temporal_stability).
+(flickering, geometry crawl, deforming text/numerals, mutating faces, objects teleporting or
+changing hands/position mid-shot). Skip a category only if it genuinely does not apply to this
+shot (e.g. no on-screen text to evaluate for temporal_stability).
+
+For hero_prop specifically, do not judge it from the video alone — continuous video playback has
+been found, by direct verification against ground truth, to miss a prop that duplicates across
+both hands for roughly a second and then settles into the wrong one. Instead: go through the
+{frame_count} labeled still frames IN ORDER and explicitly state, for every single one, which hand
+(or hands — a prop appearing in both at once is itself a defect, not a resolved state) the prop is
+in. Then report the exact pair of consecutive labeled frames between which anything changes. If
+the prop's hand is the same in every one of the {frame_count} frames, say so explicitly and mark
+it pass. This check is most likely to fail at the exact moment the character does something else
+with their other hand or body — reaching into a pocket, touching their hair, gesturing — so pay
+particular attention to the frames right around any such action.
+
+For every other category, watch the full video continuously — never judge a category from only
+its first or last frame; a defect that only exists in the middle of the shot is still a defect.
 
 Critical instruction: distinguish creative variation from generative defect. A creature's
 silhouette changing between takes, weather intensifying, or a camera move being more dynamic than
 planned can be acceptable creative variation — say so and mark it pass, with a note. An extra
-finger for a few frames, a prop changing color or vanishing, a face mutating, or geometry crawling
-is a generative defect — mark it fail. When genuinely uncertain, mark it warning and say what you
-are uncertain about. Cite approximate frame ranges for anything localized in time.
+finger for a few frames, a prop changing color, teleporting, duplicating, swapping hands, or
+vanishing, a face mutating, or geometry crawling is a generative defect — mark it fail. When
+genuinely uncertain, mark it warning and say what you are uncertain about. Cite the approximate
+timestamp (from the labeled frames) where anything localized in time actually happens, not just
+where you first or last notice it.
 """
 
 
@@ -57,7 +76,13 @@ async def critique_shot_version(
 ) -> list[QCFinding]:
     client = get_client()
 
+    frames = await extract_frames(video_bytes, count=FRAME_COUNT)
+
     parts: list[types.Part] = [types.Part.from_bytes(data=video_bytes, mime_type=video_mime_type)]
+    for i, (timestamp, frame_bytes) in enumerate(frames, start=1):
+        parts.append(types.Part.from_text(text=f"Labeled frame {i}/{len(frames)}, t={timestamp:.2f}s"))
+        parts.append(types.Part.from_bytes(data=frame_bytes, mime_type="image/png"))
+
     for ref in reference_assets:
         image_bytes = reference_images.get(str(ref.id))
         if image_bytes is None:
@@ -67,7 +92,9 @@ async def critique_shot_version(
 
     parts.append(
         types.Part.from_text(
-            text=CRITIC_PROMPT_TEMPLATE.format(continuity_context=continuity_context)
+            text=CRITIC_PROMPT_TEMPLATE.format(
+                continuity_context=continuity_context, frame_count=len(frames)
+            )
         )
     )
 
@@ -79,6 +106,10 @@ async def critique_shot_version(
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=_QCFindingsResult,
+            # High, not the default: catching a fast mid-clip swap (a few frames out of
+            # ~192) needs more per-frame detail than the default token budget gives it —
+            # found by missing exactly this on the first real critique.
+            media_resolution=types.MediaResolution.MEDIA_RESOLUTION_HIGH,
         ),
     )
     latency_ms = int((time.monotonic() - start) * 1000)
