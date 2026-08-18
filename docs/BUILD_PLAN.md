@@ -217,20 +217,18 @@ a tool. This section absorbs and widens the FastAPI-run-trigger and needs_human 
 
 In hierarchy order:
 
-- [ ] **Entity hierarchy: shows on top, creatable at every level.** The hierarchy isn't just
-      read-only, it isn't even navigable — there is no show level in the UI at all. The dashboard
-      hard-jumps into the first sequence of the first show (`limit(1)` queries in
-      `getSequenceOverview`), so "Platform Chase" is ambient context, not an entity you arrived
-      at. Build the real tree: shows list as the dashboard root → show page (sequences +
-      references) → sequence page (shots, what `/dashboard` is today) → shot page. And create at
-      every level: new show, new sequence (code, description), new shot (code, order index,
-      screen direction) — none of which exist today in UI *or* CLI; the whole hierarchy is seed
-      fixtures. A second show is currently impossible without writing SQL by hand.
-      **Creation is scoped to the parent context, strictly:** "New show" exists only on the shows
-      list (root), "New sequence" only inside a show page, "New shot" only inside a sequence page
-      — never from a sibling or deeper level. Versions have no create form at all: a version is
-      only ever produced by a run, so the create verb at that level is "start a run" (run control
-      below), not an insert.
+- [x] **Entity hierarchy: shows on top, creatable at every level.** Real route tree — shows list
+      at `/dashboard` (root) → `/dashboard/[showId]` (sequences + real references view) →
+      `/dashboard/[showId]/[sequenceCode]` (shots) → `.../[shotCode]` (detail, export, playback) —
+      replacing the `limit(1)`-assumes-one-show queries throughout. Create at every level via real
+      Server Actions with Zod validation (`lib/actions.ts`), scoped strictly to parent context as
+      decided: "New show" only at the root, "New sequence" only inside a show, "New shot" only
+      inside a sequence, no create form at version level (a version is only ever produced by a
+      run). Verified end to end for real — created a real show/sequence/shot through the actual UI
+      forms, then walked the full existing Platform Chase hierarchy through to a real approved
+      shot and downloaded its real export zip at the new shot-id URL. See
+      `generations/LEDGER.md` Phase "Audit" §26 for the account, including a real Base UI
+      SSR/CSR hydration bug found and fixed along the way.
 - [ ] **Brief authoring and persistence.** The scene goal that drives every run exists only as a
       CLI `--goal` argument — `shots` has no brief column, and only the planner's *output* prompt
       is persisted. The human intent that started each generation is not in the system at all: a
