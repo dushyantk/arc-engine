@@ -157,7 +157,12 @@ hand; worth a real product decision later (see Phase 3 note below). Total real s
       table. `app/dashboard/sessions/` (list + live detail), `components/live-session-log.tsx`.
       Live-streaming behavior (not just historical replay) verified against a real
       `--recritique-version` run — see `generations/LEDGER.md` Phase 3 §16 for the account.
-- [ ] Sequence playback: approved shots played back to back
+- [x] Sequence playback: approved shots played back to back, following each shot's actual approved
+      version (not assumed to be its latest — SH020 is the real counterexample). Honest slate for
+      approved shots with no stored footage, auto-advancing. `app/dashboard/playback/page.tsx`,
+      `components/sequence-player.tsx`. Caught and fixed a real bug: reintroduced the same SSR
+      video-error race already fixed on the shot detail page by not reusing `ShotVideo` at first —
+      see `generations/LEDGER.md` Phase 3 §18.
 - [ ] Loading and error states for slow/failed data fetches (empty states for seed data are done;
       loading/error states for live agent runs are not)
 - [ ] Open product question: `shot.status` currently reflects whichever version was *last
