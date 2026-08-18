@@ -312,10 +312,17 @@ above, not forgotten).
 - [x] **FastAPI runtime is `/health` only.** Closed in §28 — `server/routes/runs.py` adds real
       `/runs/generate`, `/runs/recritique`, `/runs/reuse-prompt` with cost-confirmation gating and
       a single-flight lock; the dashboard starts runs, not just watches them.
-- [ ] **Sequence-level continuity pass missing entirely.** ARCHITECTURE §1: "a sequence is
-      approved only when every shot is approved and a final cross-shot continuity pass agrees
-      they belong together." Nothing compares adjacent approved shots today; `sequences` has no
-      status column. This is the product's closing argument and it doesn't exist yet.
+- [x] **Sequence-level continuity pass missing entirely.** Closed — `sequences` now has a real
+      `status`/`continuity_notes`/`continuity_checked_at`, and
+      `server/agents/sequence_continuity.py` compares every approved shot's continuity
+      fingerprint in order, distinguishing a deliberate story beat from an unexplained
+      cross-shot contradiction. `POST /runs/sequence-continuity` guards on every shot being
+      approved first. Verified live: the guard correctly blocks and explains itself (both via
+      curl and in the dashboard's disabled button) on Platform Chase/SQ010's real current state;
+      the Gemini call, schema validation, and decision logging were verified directly against
+      the one real fingerprint on record, which also caught and fixed a real bug — the
+      `agent_decision_log.agent_name` ClickHouse enum silently dropped an unrecognized value to
+      `NULL` instead of failing.
 - [ ] **Server entrypoints don't load `.env` and buffer stdout.** Both bit for real:
       `KeyError: DATABASE_URL` on a bare invocation, and `run_id` staying invisible until process
       exit (needed manual `PYTHONUNBUFFERED=1`) which blocked watching a live run. Load the repo
