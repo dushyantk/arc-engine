@@ -119,17 +119,24 @@ judgment. Full narrative: `generations/LEDGER.md`.
 **Exit criteria for this phase**: run the seeded 3-shot sequence through the full loop end-to-end
 from the command line (no UI yet) and get an `approved` sequence with a real revision history.
 
-**Status: mechanism thoroughly proven, SH020 not yet approved.** Six real generations now
-(v001–v006, four of them real Veo calls made this session: v003–v006), a real root-cause
-investigation into three separate defect classes (hand laterality, character appearance drift,
-subject-vs-camera motion), a real fix verified to work (screen-left/screen-right vocabulary,
-exclude-vs-blur framing), and a reproducibility test (`--reuse-prompt-from-version`) that separated
-genuine systematic defects from one-off stochastic noise. SH020 is at `needs_human` — past the
-4-round cap, with one real remaining fail (the background clock, ~50% compliance so far on the
-"exclude from frame" instruction). Getting an actual `approved` sequence means either a stronger
-structural fix for the clock (camera framing that puts it out of frame by construction, not
-instruction) or accepting a human override. Full blow-by-blow: `generations/LEDGER.md`
-(gitignored). Total real spend so far: **$13.23**, 55 API calls, 4 real Veo generations.
+**Status: exit criteria met — SQ010 is approved.** Six real generations (v001–v006, four of them
+real Veo calls: v003–v006), a real root-cause investigation into three separate defect classes
+(hand laterality, character appearance drift, subject-vs-camera motion), a real fix verified to
+work (screen-left/screen-right vocabulary, exclude-vs-blur framing), and a reproducibility test
+(`--reuse-prompt-from-version`) that separated genuine systematic defects from one-off stochastic
+noise. SH020 sat at `needs_human` for a while — past the 4-round cap, with the background clock as
+the one real remaining fail. It reached `approved` on 2026-08-17 not through a new engineered fix,
+but from a routine re-critique of the existing v5 footage (run while building and verifying the
+live session view — see `generations/LEDGER.md` Phase 3 §16–17): the critic's own judgment on the
+exact same video differed run to run, finding 0 fails and 1 tolerated warning this time against a
+harder finding previously. Worth being honest about rather than spinning as "solved": this is
+real evidence the critic isn't perfectly deterministic, not proof the clock defect is structurally
+fixed. All three shots (SH010, SH020, SH030) now read `approved`, but note SH020's *latest*
+version is still v6, marked `failed` — `shot.status` reflects the outcome of the most recent
+evaluation action, not necessarily of the latest version, so the sequence card and the version list
+can legitimately disagree at a glance. Left as real, unmassaged data rather than reconciled by
+hand; worth a real product decision later (see Phase 3 note below). Total real spend so far:
+**$13.23**, 55 API calls, 4 real Veo generations.
 
 ## Phase 3 — Dashboard (Next.js)
 
@@ -153,6 +160,12 @@ instruction) or accepting a human override. Full blow-by-blow: `generations/LEDG
 - [ ] Sequence playback: approved shots played back to back
 - [ ] Loading and error states for slow/failed data fetches (empty states for seed data are done;
       loading/error states for live agent runs are not)
+- [ ] Open product question: `shot.status` currently reflects whichever version was *last
+      evaluated*, not the latest version number — SQ010 hit this for real on 2026-08-17 (SH020
+      reads `approved` while its latest version, v6, reads `failed`, because the approving
+      evaluation was a re-critique of v5). Decide whether shot status should instead be derived
+      from the latest version's own status, and whether re-critiquing an older version should be
+      allowed to move shot status at all. See `generations/LEDGER.md` Phase 3 §17.
 
 ## Phase 4 — Export & handoff
 
