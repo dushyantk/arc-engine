@@ -107,15 +107,14 @@ footage and checking it by hand, not theorized:
    asset yet, note in the invariants list that its appearance isn't grounded and will vary between
    generations until a reference exists.
 
-   The Maya character reference photo itself has a real limitation worth defending against: it
-   shows her facial mark looking like a fresh, wet, actively-bleeding injury (extracted from a
-   dramatic mid-scene moment), not the "small healed scar" the continuity record actually
-   establishes. Two real SH010 generations conditioned on it both rendered a fresh red
-   mark/wound instead of a healed scar — the image is winning over the text on this specific
-   detail. Defend against it explicitly in the prompt: state that despite any fresh-looking mark
-   in the reference photo, her scar is old, healed, and faded — pale/silvery, not red or wet —
-   and describe it that way in its own sentence rather than assuming the reference image alone
-   conveys "healed."
+   The facial mark above Maya's left eyebrow is a fresh-looking, reddish cut, not a healed scar —
+   this was corrected in the continuity record after three real generations across two different
+   shots (SH010 v2/v3, SH030 v3) all consistently rendered it fresh no matter how the text
+   described it, because the real reference photo itself shows a fresh mark and image-conditioning
+   was winning over any "healed" text every time. Do not describe it as healed, pale, faded, or
+   silvery — that now contradicts both the reference photo and the real, confirmed pattern of what
+   this pipeline actually produces. Describe it as it actually renders: a small, fresh-looking,
+   reddish cut above her left eyebrow.
 
 5. **Relying on blur/focus to hide an object has a 0-for-3 real track record.** Three separate real
    generations asked for a background object (a station clock) to be blurred or out of focus so it
