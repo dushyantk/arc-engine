@@ -82,6 +82,7 @@ export default async function DashboardLayout({
             <RailItem
               label="SESSION_LOG"
               count={overview?.rail.sessionLogCount}
+              href="/dashboard/sessions"
             />
             <RailItem label="EXPORT" />
           </nav>

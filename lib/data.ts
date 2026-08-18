@@ -73,6 +73,114 @@ export async function getRailStats(showId: string, sequenceShotCount: number) {
   };
 }
 
+export type DecisionLogEvent = {
+  runId: string;
+  agentName:
+    | "planner"
+    | "generation_adapter"
+    | "critic"
+    | "revision_agent"
+    | "approval_gate";
+  step: string;
+  inputRef: string;
+  outputRef: string;
+  model: string;
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number;
+  latencyMs: number;
+  createdAt: string;
+};
+
+const DECISION_LOG_SELECT = `
+  SELECT run_id, agent_name, step, input_ref, output_ref, model,
+         tokens_in, tokens_out, cost_usd, latency_ms, toString(created_at) AS created_at
+  FROM dailies.agent_decision_log
+`;
+
+type DecisionLogRow = {
+  run_id: string;
+  agent_name: DecisionLogEvent["agentName"];
+  step: string;
+  input_ref: string;
+  output_ref: string;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: string;
+  latency_ms: number;
+  created_at: string;
+};
+
+function toDecisionLogEvent(row: DecisionLogRow): DecisionLogEvent {
+  return {
+    runId: row.run_id,
+    agentName: row.agent_name,
+    step: row.step,
+    inputRef: row.input_ref,
+    outputRef: row.output_ref,
+    model: row.model,
+    tokensIn: row.tokens_in,
+    tokensOut: row.tokens_out,
+    costUsd: Number(row.cost_usd),
+    latencyMs: row.latency_ms,
+    createdAt: row.created_at,
+  };
+}
+
+// Every real agent run this product has ever made, whoever triggered it -
+// the CLI (server/run_session.py) today, a future FastAPI-triggered job
+// later. Reading ClickHouse directly from Next.js (same pattern as
+// getQcFindings/getRailStats) means this view doesn't care which process
+// wrote the row, only that it's real.
+export async function getRecentSessions(limit = 20) {
+  const client = getClickHouseClient();
+  const result = await client.query({
+    query: `
+      SELECT run_id, min(created_at) AS started_at, max(created_at) AS last_event_at,
+             count() AS event_count, sum(cost_usd) AS total_cost,
+             groupArray(agent_name) AS agents
+      FROM dailies.agent_decision_log
+      GROUP BY run_id
+      ORDER BY started_at DESC
+      LIMIT {limit:UInt32}
+    `,
+    query_params: { limit },
+    format: "JSONEachRow",
+  });
+  const rows = await result.json<{
+    run_id: string;
+    started_at: string;
+    last_event_at: string;
+    event_count: string;
+    total_cost: string;
+    agents: string[];
+  }>();
+  return rows.map((row) => ({
+    runId: row.run_id,
+    startedAt: row.started_at,
+    lastEventAt: row.last_event_at,
+    eventCount: Number(row.event_count),
+    totalCost: Number(row.total_cost),
+    hasGeneration: row.agents.includes("generation_adapter"),
+  }));
+}
+
+export async function getSessionEvents(runId: string, sinceIso?: string) {
+  const client = getClickHouseClient();
+  const result = await client.query({
+    query:
+      DECISION_LOG_SELECT +
+      (sinceIso
+        ? " WHERE run_id = {runId:String} AND created_at > {since:DateTime64(3)} ORDER BY created_at ASC"
+        : " WHERE run_id = {runId:String} ORDER BY created_at ASC"),
+    query_params: sinceIso ? { runId, since: sinceIso } : { runId },
+    format: "JSONEachRow",
+  });
+  const rows = await result.json<DecisionLogRow>();
+  return rows.map(toDecisionLogEvent);
+}
+
 export async function getSequenceOverview() {
   const [show] = await db.select().from(shows).limit(1);
   if (!show) return null;

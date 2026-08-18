@@ -142,8 +142,14 @@ instruction) or accepting a human override. Full blow-by-blow: `generations/LEDG
       route), generation prompt text, approval-event trail. `app/dashboard/[shotCode]/page.tsx`.
 - [x] Empty state for versions with no uploaded video (seed data) — fixed an SSR race where the
       fallback silently failed to appear; see `generations/LEDGER.md` Phase 3 §14.
-- [ ] Live dailies session view: real-time plan → generate → critique → revise log (SSE/WebSocket
-      from FastAPI) — this is the demo centerpiece
+- [x] Live dailies session view: real-time plan → generate → critique → revise log. Built as a
+      Next.js SSE route polling ClickHouse directly (`app/api/sessions/[runId]/stream/route.ts`,
+      1s interval) rather than FastAPI SSE/WebSocket — same direct-ClickHouse-read pattern as the
+      QC report and rail stats, and it means the view works regardless of what actually triggered
+      the run (today: the CLI; later: a FastAPI-triggered job) since it just tails the real log
+      table. `app/dashboard/sessions/` (list + live detail), `components/live-session-log.tsx`.
+      Live-streaming behavior (not just historical replay) verified against a real
+      `--recritique-version` run — see `generations/LEDGER.md` Phase 3 §16 for the account.
 - [ ] Sequence playback: approved shots played back to back
 - [ ] Loading and error states for slow/failed data fetches (empty states for seed data are done;
       loading/error states for live agent runs are not)
