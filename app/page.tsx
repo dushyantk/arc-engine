@@ -93,7 +93,7 @@ function VerdictIcon({ verdict }: { verdict: "pass" | "warning" | "fail" }) {
 export default function LandingPage() {
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-border">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur-[10px]">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <span className="flex items-center gap-2 text-sm font-semibold tracking-tight">
             <Film className="size-[18px] text-primary" />
