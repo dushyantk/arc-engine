@@ -290,14 +290,16 @@ above, not forgotten).
 
 ### Agent loop & backend
 
-- [ ] **Real runs never write production memory.** The critic inserts nothing into
-      `dailies.qc_findings` (the only rows there are seed data — which is why the QC report UI
-      renders only for seeded SH020 v002 and no real version), and nothing extracts a
-      `continuity_fingerprints` row when a version is approved. The planner's ClickHouse research
-      is reading memory frozen at the seed: SH030's real approval isn't in the record the next
-      shot's planning would consult. This contradicts the product's core "production memory"
-      claim. Wire both writes into the real loop: critic → `qc_findings` rows, approval →
-      fingerprint extraction + insert.
+- [x] **Real runs never write production memory.** Closed — `server/agents/production_memory.py`
+      now writes both tables for real. `store_qc_findings()` fires on every critique
+      (run/recritique/reuse-prompt), so the QC report UI renders for real versions, not just
+      seeded SH020 v002. `extract_and_store_fingerprint()` fires on any approval (agent or
+      human — human approval has no critique of its own to piggyback on, so it calls a dedicated
+      `POST /runs/extract-fingerprint` endpoint instead), extracting structured continuity state
+      from the approved prompt so the planner's ClickHouse research reflects what a show has
+      actually produced, not the frozen seed. Verified live: a real recritique on SH030 v5 wrote
+      7 genuine finding rows, and a backfill extraction on the same version produced a correct
+      fingerprint row.
 - [ ] **No retry on the Veo call itself.** `generate_shot_version` raises raw on transient server
       errors — hit for real on SH010 (code-13 internal error, after ~$0.03 of planner calls were
       already spent; a second full attempt was needed). The planner/critic Gemini calls are
