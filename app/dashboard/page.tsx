@@ -1,113 +1,97 @@
-import Image from "next/image";
 import Link from "next/link";
-import { Film } from "lucide-react";
-import { getSequenceOverview } from "@/lib/data";
-import { ShotStatusBadge } from "@/components/status-badge";
+import { Film, Plus } from "lucide-react";
+import { getShows } from "@/lib/data";
+import { createShow } from "@/lib/actions";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export const dynamic = "force-dynamic";
 
-// SH020 is the only shot with a real, stored generation in this beta seed.
-// SH010 and SH030 carry their real Postgres history (prompts, approval
-// events) but no uploaded video bytes yet, hence the placeholder treatment
-// below rather than pretending there's footage to show.
-const REAL_THUMBNAILS: Record<string, string> = {
-  SH020: "/proof/hero.jpg",
-};
-
-export default async function DashboardPage() {
-  const overview = await getSequenceOverview();
-
-  if (!overview) {
-    return (
-      <div className="mx-auto max-w-7xl px-6 py-24 text-center">
-        <p className="text-sm text-muted-foreground">
-          No sequence found. Run <code className="font-mono">pnpm db:seed</code>{" "}
-          against the local stack first.
-        </p>
-      </div>
-    );
-  }
-
-  const { show, sequence, shots } = overview;
-  const approvedCount = shots.filter((s) => s.status === "approved").length;
+export default async function ShowsPage() {
+  const rows = await getShows();
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12">
+    <div className="mx-auto max-w-5xl px-6 py-12">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
         <div>
-          <p className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-            {show.name}
+          <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+            Dailies
           </p>
           <h1 className="font-heading mt-1 text-2xl font-semibold tracking-tight">
-            {sequence.code}
+            Shows
           </h1>
-          {sequence.description ? (
-            <p className="mt-2 max-w-[65ch] text-sm text-muted-foreground">
-              {sequence.description}
-            </p>
-          ) : null}
         </div>
-        <div className="text-right">
-          <p className="font-mono text-sm text-muted-foreground">
-            {approvedCount} / {shots.length} approved
-          </p>
-          {approvedCount > 0 ? (
-            <Link
-              href="/dashboard/playback"
-              className="mt-1 inline-block text-sm text-primary hover:underline"
-            >
-              Play approved cut &rarr;
-            </Link>
-          ) : null}
-        </div>
+        <Dialog>
+          {/* DialogTrigger renders natively (styled via buttonVariants)
+              instead of wrapping a <Button> - nesting two Base UI
+              primitives' render-prop cloning produces a real SSR/CSR
+              data-slot hydration mismatch on every load. */}
+          <DialogTrigger className={buttonVariants({ size: "sm" })}>
+            <Plus className="size-4" />
+            New show
+          </DialogTrigger>
+          <DialogContent>
+            <form action={createShow}>
+              <DialogHeader>
+                <DialogTitle>New show</DialogTitle>
+                <DialogDescription>
+                  The top of the hierarchy — sequences and shots live
+                  underneath it.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder="Platform Chase"
+                  required
+                  autoFocus
+                  className="mt-1.5"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="submit">Create show</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {shots.map((shot) => {
-          const thumbnail = REAL_THUMBNAILS[shot.code];
-          return (
-            <Link
-              key={shot.id}
-              href={`/dashboard/${shot.code}`}
-              className="group overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-ring"
-            >
-              <div className="relative aspect-video overflow-hidden bg-secondary">
-                {thumbnail ? (
-                  <Image
-                    src={thumbnail}
-                    alt={`Latest generated frame from ${shot.code}`}
-                    fill
-                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                    <Film className="size-5" />
-                    <span className="font-mono text-[11px] uppercase tracking-wide">
-                      Seed data, not yet generated
-                    </span>
-                  </div>
-                )}
-                <span className="absolute bottom-2 left-2 rounded-sm bg-background/80 px-1.5 py-0.5 font-mono text-[11px] text-foreground">
-                  {shot.code}
-                </span>
+      <div className="mt-8 flex flex-col gap-2">
+        {rows.map(({ show, sequenceCount, shotCount }) => (
+          <Link
+            key={show.id}
+            href={`/dashboard/${show.id}`}
+            className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-3 transition-colors hover:border-ring"
+          >
+            <div className="flex items-center gap-3">
+              <Film className="size-4 text-primary" />
+              <div>
+                <p className="text-sm font-medium">{show.name}</p>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                  {sequenceCount} sequence{sequenceCount === 1 ? "" : "s"}{" "}
+                  &middot; {shotCount} shot{shotCount === 1 ? "" : "s"}
+                </p>
               </div>
-              <div className="flex items-center justify-between p-4">
-                <div>
-                  <p className="font-mono text-sm font-medium">{shot.code}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {shot.versions.length} version
-                    {shot.versions.length === 1 ? "" : "s"}
-                    {shot.latestVersion
-                      ? ` · v${shot.latestVersion.versionNumber}`
-                      : ""}
-                  </p>
-                </div>
-                <ShotStatusBadge status={shot.status} />
-              </div>
-            </Link>
-          );
-        })}
+            </div>
+          </Link>
+        ))}
+        {rows.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            No shows yet. Create one to get started.
+          </p>
+        ) : null}
       </div>
     </div>
   );

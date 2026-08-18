@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getShotDeepLink } from "@/lib/data";
+
+export const dynamic = "force-dynamic";
 
 const CTA_LABEL = "See the pipeline";
 
@@ -90,7 +93,9 @@ function VerdictIcon({ verdict }: { verdict: "pass" | "warning" | "fail" }) {
   return <XCircle className="size-3.5" />;
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const sh020Link = (await getShotDeepLink("SH020")) ?? "/dashboard";
+
   return (
     <div className="flex flex-1 flex-col">
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur-[10px]">
@@ -159,7 +164,7 @@ export default function LandingPage() {
 
             <div>
               <Link
-                href="/dashboard/SH020"
+                href={sh020Link}
                 className="group relative block aspect-[16/10] overflow-hidden rounded-lg border border-border"
               >
                 <Image

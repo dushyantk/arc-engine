@@ -53,13 +53,12 @@ export async function getQcFindings(shotId: string, version: number) {
   }));
 }
 
-export async function getRailStats(showId: string, sequenceShotCount: number) {
+// Global rail stats for the dashboard layout, which now spans multiple
+// shows - no single show/sequence to scope counts to at that level.
+export async function getGlobalRailStats() {
   const client = getClickHouseClient();
-  const [referenceCount, sessionLogResult] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(referenceAssets)
-      .where(eq(referenceAssets.showId, showId)),
+  const [showCount, sessionLogResult] = await Promise.all([
+    db.select({ n: count() }).from(shows),
     client.query({
       query: "SELECT count() AS n FROM dailies.agent_decision_log",
       format: "JSONEachRow",
@@ -67,8 +66,7 @@ export async function getRailStats(showId: string, sequenceShotCount: number) {
   ]);
   const sessionLogRows = await sessionLogResult.json<{ n: string }>();
   return {
-    sequenceShotCount,
-    referenceCount: referenceCount[0]?.n ?? 0,
+    showCount: showCount[0]?.n ?? 0,
     sessionLogCount: Number(sessionLogRows[0]?.n ?? 0),
   };
 }
@@ -206,6 +204,61 @@ export async function getVersionProvenance(shotCode: string, versionNumber: numb
   return { runId, events };
 }
 
+// The full hierarchy is navigable now, not assumed via limit(1) - shows
+// list is the dashboard root, every level below is reached by real
+// foreign-key-scoped lookups. See docs/BUILD_PLAN.md's "Operator control
+// plane" audit item this replaces.
+
+export async function getShows() {
+  const showRows = await db.select().from(shows).orderBy(desc(shows.createdAt));
+  return Promise.all(
+    showRows.map(async (show) => {
+      const sequenceRows = await db
+        .select()
+        .from(sequences)
+        .where(eq(sequences.showId, show.id));
+      const shotCounts = await Promise.all(
+        sequenceRows.map((sequence) =>
+          db
+            .select({ n: count() })
+            .from(shots)
+            .where(eq(shots.sequenceId, sequence.id)),
+        ),
+      );
+      const shotCount = shotCounts.reduce((sum, rows) => sum + (rows[0]?.n ?? 0), 0);
+      return { show, sequenceCount: sequenceRows.length, shotCount };
+    }),
+  );
+}
+
+export async function getShowDetail(showId: string) {
+  const [show] = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
+  if (!show) return null;
+
+  const sequenceRows = await db
+    .select()
+    .from(sequences)
+    .where(eq(sequences.showId, showId));
+
+  const sequencesWithCounts = await Promise.all(
+    sequenceRows.map(async (sequence) => {
+      const shotRows = await db
+        .select()
+        .from(shots)
+        .where(eq(shots.sequenceId, sequence.id));
+      const approvedCount = shotRows.filter((s) => s.status === "approved").length;
+      return { sequence, shotCount: shotRows.length, approvedCount };
+    }),
+  );
+
+  const referenceRows = await db
+    .select()
+    .from(referenceAssets)
+    .where(eq(referenceAssets.showId, showId));
+
+  return { show, sequences: sequencesWithCounts, referenceAssets: referenceRows };
+}
+
 // Approved shots played back to back, in shot order. A shot's *approved*
 // version isn't necessarily its latest one - SH020 is the real example:
 // shots.status flipped to approved via a re-critique of v5, while v6 (the
@@ -221,14 +274,14 @@ export async function getVersionProvenance(shotCode: string, versionNumber: numb
 // as "approved footage" while the sequence view (which reads shots.status)
 // correctly excludes it - two dashboard views disagreeing about the same
 // real shot.
-export async function getPlaybackSequence() {
-  const [show] = await db.select().from(shows).limit(1);
+export async function getPlaybackSequence(showId: string, sequenceCode: string) {
+  const [show] = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
   if (!show) return null;
 
   const [sequence] = await db
     .select()
     .from(sequences)
-    .where(eq(sequences.showId, show.id))
+    .where(and(eq(sequences.showId, showId), eq(sequences.code, sequenceCode)))
     .limit(1);
   if (!sequence) return null;
 
@@ -261,14 +314,14 @@ export async function getPlaybackSequence() {
   return { show, sequence, items };
 }
 
-export async function getSequenceOverview() {
-  const [show] = await db.select().from(shows).limit(1);
+export async function getSequenceDetail(showId: string, sequenceCode: string) {
+  const [show] = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
   if (!show) return null;
 
   const [sequence] = await db
     .select()
     .from(sequences)
-    .where(eq(sequences.showId, show.id))
+    .where(and(eq(sequences.showId, showId), eq(sequences.code, sequenceCode)))
     .limit(1);
   if (!sequence) return null;
 
@@ -289,24 +342,27 @@ export async function getSequenceOverview() {
     }),
   );
 
-  const rail = await getRailStats(show.id, shotRows.length);
-
-  return { show, sequence, shots: shotsWithVersions, rail };
+  return { show, sequence, shots: shotsWithVersions };
 }
 
-export async function getShotDetail(shotCode: string) {
-  const [shot] = await db
-    .select()
-    .from(shots)
-    .where(eq(shots.code, shotCode))
-    .limit(1);
-  if (!shot) return null;
-
+export async function getShotDetail(
+  showId: string,
+  sequenceCode: string,
+  shotCode: string,
+) {
   const [sequence] = await db
     .select()
     .from(sequences)
-    .where(eq(sequences.id, shot.sequenceId))
+    .where(and(eq(sequences.showId, showId), eq(sequences.code, sequenceCode)))
     .limit(1);
+  if (!sequence) return null;
+
+  const [shot] = await db
+    .select()
+    .from(shots)
+    .where(and(eq(shots.sequenceId, sequence.id), eq(shots.code, shotCode)))
+    .limit(1);
+  if (!shot) return null;
 
   const versions = await db
     .select()
@@ -327,16 +383,7 @@ export async function getShotDetail(shotCode: string) {
     eventsByVersion.set(event.shotVersionId, existing);
   }
 
-  const [show] = sequence
-    ? await db.select().from(shows).where(eq(shows.id, sequence.showId)).limit(1)
-    : [];
-  const rail = show
-    ? await getRailStats(
-        show.id,
-        (await db.select().from(shots).where(eq(shots.sequenceId, sequence.id)))
-          .length,
-      )
-    : null;
+  const [show] = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
 
   const versionsWithFindings = await Promise.all(
     versions.map(async (version) => ({
@@ -349,7 +396,24 @@ export async function getShotDetail(shotCode: string) {
   return {
     shot,
     sequence,
-    rail,
+    show,
     versions: versionsWithFindings,
   };
+}
+
+// Best-effort deep link for a shot code, for the one place outside the
+// hierarchy itself that needs to link straight to a shot: the landing
+// page's real-footage callout. Shot codes are only unique within a
+// sequence now that multiple shows are real - this returns the first
+// match, which is fine for a marketing link, not for anything that needs
+// to be unambiguous (use getShotDetail with full context for that).
+export async function getShotDeepLink(shotCode: string) {
+  const [row] = await db
+    .select({ showId: sequences.showId, sequenceCode: sequences.code })
+    .from(shots)
+    .innerJoin(sequences, eq(shots.sequenceId, sequences.id))
+    .where(eq(shots.code, shotCode))
+    .limit(1);
+  if (!row) return null;
+  return `/dashboard/${row.showId}/${row.sequenceCode}/${shotCode}`;
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Film } from "lucide-react";
-import { getSequenceOverview } from "@/lib/data";
+import { getGlobalRailStats } from "@/lib/data";
 
 function RailItem({
   label,
@@ -44,8 +44,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const overview = await getSequenceOverview();
-  const projectLabel = overview?.show.name.toUpperCase().replace(/ /g, "_") ?? "DAILIES";
+  const stats = await getGlobalRailStats();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -66,22 +65,14 @@ export default async function DashboardLayout({
           <div className="mb-5 flex items-center gap-2 px-2.5">
             <Film className="size-[15px] text-primary" />
             <span className="font-mono text-[13px] font-semibold">
-              {projectLabel}
+              DAILIES
             </span>
           </div>
           <nav className="flex flex-col gap-0.5">
-            <RailItem
-              label="SEQUENCE"
-              count={overview?.rail.sequenceShotCount}
-              href="/dashboard"
-            />
-            <RailItem
-              label="REFERENCES"
-              count={overview?.rail.referenceCount}
-            />
+            <RailItem label="SHOWS" count={stats.showCount} href="/dashboard" />
             <RailItem
               label="SESSION_LOG"
-              count={overview?.rail.sessionLogCount}
+              count={stats.sessionLogCount}
               href="/dashboard/sessions"
             />
             <RailItem label="EXPORT" />

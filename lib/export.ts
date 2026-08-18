@@ -54,8 +54,13 @@ async function objectExists(key: string): Promise<boolean> {
 // with no approved version, or an approved version with no stored video,
 // produces a package that honestly says so rather than one that's missing
 // files with no explanation.
-export async function getExportPackage(shotCode: string): Promise<ExportPackage | null> {
-  const [shot] = await db.select().from(shots).where(eq(shots.code, shotCode)).limit(1);
+//
+// Keyed by the shot's real UUID, not its code - shot codes are only
+// unique within a sequence now that multiple shows/sequences are real
+// entities, and the export API route (/api/export/[shotId]) is a flat,
+// unscoped route that needs an unambiguous key.
+export async function getExportPackage(shotId: string): Promise<ExportPackage | null> {
+  const [shot] = await db.select().from(shots).where(eq(shots.id, shotId)).limit(1);
   if (!shot) return null;
 
   const [sequence] = await db
@@ -117,7 +122,7 @@ export async function getExportPackage(shotCode: string): Promise<ExportPackage 
     .orderBy(desc(approvalEvents.createdAt));
 
   const provenance = approvedVersion
-    ? await getVersionProvenance(shotCode, approvedVersion.versionNumber)
+    ? await getVersionProvenance(shot.code, approvedVersion.versionNumber)
     : { runId: null, events: [] };
 
   return {

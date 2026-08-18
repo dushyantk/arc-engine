@@ -18,10 +18,10 @@ function formatDate(date: Date) {
 export default async function ShotDetailPage({
   params,
 }: {
-  params: Promise<{ shotCode: string }>;
+  params: Promise<{ showId: string; sequenceCode: string; shotCode: string }>;
 }) {
-  const { shotCode } = await params;
-  const detail = await getShotDetail(shotCode);
+  const { showId, sequenceCode, shotCode } = await params;
+  const detail = await getShotDetail(showId, sequenceCode, shotCode);
 
   if (!detail) notFound();
 
@@ -30,7 +30,7 @@ export default async function ShotDetailPage({
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
       <Link
-        href="/dashboard"
+        href={`/dashboard/${showId}/${sequenceCode}`}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
@@ -50,7 +50,7 @@ export default async function ShotDetailPage({
         </div>
         <div className="flex items-center gap-4">
           <Link
-            href={`/dashboard/${shot.code}/export`}
+            href={`/dashboard/${showId}/${sequenceCode}/${shot.code}/export`}
             className="text-sm text-primary hover:underline"
           >
             Export &rarr;

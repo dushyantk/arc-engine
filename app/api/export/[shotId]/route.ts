@@ -8,14 +8,15 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ shotCode: string }> },
+  { params }: { params: Promise<{ shotId: string }> },
 ) {
-  const { shotCode } = await params;
-  const pkg = await getExportPackage(shotCode);
+  const { shotId } = await params;
+  const pkg = await getExportPackage(shotId);
   if (!pkg) {
     return new Response("Shot not found", { status: 404 });
   }
 
+  const shotCode = pkg.shot.code;
   const zip = new JSZip();
   const root = zip.folder(shotCode)!;
   root.folder("plate"); // no live-action plate ingested - see the .nk comment

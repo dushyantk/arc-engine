@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Download, File, Folder } from "lucide-react";
+import { getShotDetail } from "@/lib/data";
 import { getExportPackage } from "@/lib/export";
 import { generateNukeScript } from "@/lib/nuke-script";
 import { Button } from "@/components/ui/button";
@@ -37,10 +38,13 @@ function TreeRow({
 export default async function ExportPage({
   params,
 }: {
-  params: Promise<{ shotCode: string }>;
+  params: Promise<{ showId: string; sequenceCode: string; shotCode: string }>;
 }) {
-  const { shotCode } = await params;
-  const pkg = await getExportPackage(shotCode);
+  const { showId, sequenceCode, shotCode } = await params;
+  const detail = await getShotDetail(showId, sequenceCode, shotCode);
+  if (!detail) notFound();
+
+  const pkg = await getExportPackage(detail.shot.id);
   if (!pkg) notFound();
 
   const nukeScript = generateNukeScript(pkg);
@@ -52,7 +56,7 @@ export default async function ExportPage({
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       <Link
-        href={`/dashboard/${shotCode}`}
+        href={`/dashboard/${showId}/${sequenceCode}/${shotCode}`}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
@@ -70,7 +74,7 @@ export default async function ExportPage({
         </div>
         <Button
           render={
-            <a href={`/api/export/${shotCode}`}>
+            <a href={`/api/export/${detail.shot.id}`}>
               <Download className="size-4" />
               Download .zip
             </a>
