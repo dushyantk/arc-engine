@@ -56,6 +56,7 @@ from agents.critic import critique_shot_version
 from agents.decision_log import new_run_id
 from agents.generation import generate_shot_version
 from agents.planner import plan_shot
+from agents.production_memory import extract_and_store_fingerprint, store_qc_findings
 from agents.revision import revise_shot
 from db.models import ReferenceAsset, Shot
 from db.postgres import Database
@@ -90,6 +91,11 @@ async def _apply_result(
 ) -> ShotStatus:
     for f in findings:
         print(f"  [{f.severity}/{f.verdict}] {f.category}: {f.description}")
+
+    # Real production memory: every real critique's findings, granular,
+    # regardless of verdict - previously only the seed data ever wrote
+    # here (see agents/production_memory.py).
+    store_qc_findings(shot_id=str(shot.id), version=version_number, findings=findings)
 
     status = evaluate(findings, version_number, run_id=run_id, shot_code=shot.code)
     print(f"result: {status}")
@@ -129,6 +135,8 @@ async def _generate_store_and_critique(
     db: Database,
     shot: Shot,
     shot_code: str,
+    show_name: str,
+    sequence_code: str,
     reference_assets: list[ReferenceAsset],
     brief: ShotBrief,
     run_id: str,
@@ -181,6 +189,22 @@ async def _generate_store_and_critique(
     )
     status = await _apply_result(db, shot, shot_version.id, next_version, findings, run_id)
 
+    if status == "approved":
+        print("extracting continuity fingerprint for production memory...")
+        await extract_and_store_fingerprint(
+            show_name=show_name,
+            sequence_code=sequence_code,
+            shot_code=shot_code,
+            version_number=next_version,
+            prompt=brief.prompt,
+            generation_settings=brief.generation_settings,
+            screen_direction=shot.screen_direction,
+            reference_frame_urls=[r.image_url for r in reference_assets],
+            qc_findings=findings,
+            approval_status=status,
+            run_id=run_id,
+        )
+
     if status in ("revise", "needs_human"):
         print("revising (instruction only, not re-generating)...")
         instruction = await revise_shot(
@@ -209,7 +233,9 @@ async def recritique(
     db = Database()
     await db.connect()
 
-    shot, _, _, reference_assets = await _load_show_shot(db, shot_code, show_name)
+    shot, show_name_resolved, sequence_code, reference_assets = await _load_show_shot(
+        db, shot_code, show_name
+    )
     versions = await db.get_shot_versions(shot.id)
     target = next((v for v in versions if v.version_number == version_number), None)
     if target is None:
@@ -242,6 +268,24 @@ async def recritique(
     )
     status = await _apply_result(db, shot, target.id, version_number, findings, run_id)
 
+    if status == "approved" and target.generation_settings is not None:
+        print("extracting continuity fingerprint for production memory...")
+        await extract_and_store_fingerprint(
+            show_name=show_name_resolved,
+            sequence_code=sequence_code,
+            shot_code=shot_code,
+            version_number=version_number,
+            prompt=target.generation_prompt,
+            generation_settings=GenerationSettings.model_validate(target.generation_settings),
+            screen_direction=shot.screen_direction,
+            reference_frame_urls=[r.image_url for r in reference_assets],
+            qc_findings=findings,
+            approval_status=status,
+            run_id=run_id,
+        )
+    elif status == "approved":
+        print("no stored generation_settings for this version - skipping fingerprint extraction.")
+
     if status in ("revise", "needs_human"):
         print("revising (instruction only, not re-generating)...")
         instruction = await revise_shot(
@@ -272,7 +316,9 @@ async def reuse_prompt(
     db = Database()
     await db.connect()
 
-    shot, _, _, reference_assets = await _load_show_shot(db, shot_code, show_name)
+    shot, show_name_resolved, sequence_code, reference_assets = await _load_show_shot(
+        db, shot_code, show_name
+    )
     versions = await db.get_shot_versions(shot.id)
     source = next((v for v in versions if v.version_number == source_version), None)
     if source is None:
@@ -296,7 +342,15 @@ async def reuse_prompt(
     # applies - carry it forward rather than leaving this version's
     # brief_used blank, which would misrepresent it as brief-less.
     await _generate_store_and_critique(
-        db, shot, shot_code, reference_assets, brief, run_id, brief_used=source.brief_used
+        db,
+        shot,
+        shot_code,
+        show_name_resolved,
+        sequence_code,
+        reference_assets,
+        brief,
+        run_id,
+        brief_used=source.brief_used,
     )
     await db.close()
     return run_id
@@ -350,7 +404,15 @@ async def run(
     print(f"brief ready. prompt: {brief.prompt[:120]}...")
 
     await _generate_store_and_critique(
-        db, shot, shot_code, reference_assets, brief, run_id, brief_used=scene_goal
+        db,
+        shot,
+        shot_code,
+        show_name_resolved,
+        sequence_code,
+        reference_assets,
+        brief,
+        run_id,
+        brief_used=scene_goal,
     )
     await db.close()
     return run_id

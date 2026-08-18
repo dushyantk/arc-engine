@@ -127,6 +127,8 @@ export default async function ShotDetailPage({
                     shot.code,
                     shot.id,
                     version.id,
+                    version.versionNumber,
+                    show?.name ?? "",
                   )}
                 />
                 <VersionStatusBadge status={version.status} />

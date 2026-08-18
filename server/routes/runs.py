@@ -22,6 +22,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from agents.decision_log import get_veo_pricing, new_run_id
+from agents.production_memory import extract_and_store_fingerprint, get_qc_findings
+from db.postgres import Database
+from models.contracts import GenerationSettings
 from run_session import recritique as run_recritique
 from run_session import reuse_prompt as run_reuse_prompt
 from run_session import run as run_generate
@@ -158,4 +161,65 @@ async def start_reuse_prompt(req: ReusePromptRequest) -> RunStartedResponse:
     return RunStartedResponse(
         run_id=run_id,
         detail=f"Reuse-prompt run started for {req.shot_code} from v{req.source_version}.",
+    )
+
+
+class ExtractFingerprintRequest(BaseModel):
+    shot_code: str
+    version_number: int
+    show_name: str | None = None
+
+
+@router.post("/extract-fingerprint", response_model=RunStartedResponse)
+async def extract_fingerprint(req: ExtractFingerprintRequest) -> RunStartedResponse:
+    """Backfills continuity_fingerprints for a version approved outside the
+    normal agent loop - specifically, a human approval (lib/actions.ts's
+    submitHumanApproval), which is a pure Postgres write and has no
+    Gemini call of its own to piggyback the extraction onto. Not
+    single-flighted: it's a fast, cheap text-extraction call, not a real
+    generation, and gating it on an unrelated in-flight Veo run would just
+    make human review feel broken for no real reason."""
+    db = Database()
+    await db.connect()
+    try:
+        try:
+            shot, show, sequence = await db.find_shot_by_code(req.shot_code, req.show_name)
+        except LookupError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+        versions = await db.get_shot_versions(shot.id)
+        target = next((v for v in versions if v.version_number == req.version_number), None)
+        if target is None:
+            raise HTTPException(
+                status_code=404, detail=f"{req.shot_code} has no v{req.version_number}"
+            )
+        if target.generation_settings is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{req.shot_code} v{req.version_number} has no stored generation_settings.",
+            )
+
+        reference_assets = await db.get_reference_assets(show.id)
+        real_findings = get_qc_findings(shot_id=str(shot.id), version=req.version_number)
+
+        run_id = new_run_id()
+        await extract_and_store_fingerprint(
+            show_name=show.name,
+            sequence_code=sequence.code,
+            shot_code=req.shot_code,
+            version_number=req.version_number,
+            prompt=target.generation_prompt,
+            generation_settings=GenerationSettings.model_validate(target.generation_settings),
+            screen_direction=shot.screen_direction,
+            reference_frame_urls=[r.image_url for r in reference_assets],
+            qc_findings=real_findings,
+            approval_status="approved",
+            run_id=run_id,
+        )
+    finally:
+        await db.close()
+
+    return RunStartedResponse(
+        run_id=run_id,
+        detail=f"Continuity fingerprint extracted for {req.shot_code} v{req.version_number}.",
     )

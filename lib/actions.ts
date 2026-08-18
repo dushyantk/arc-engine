@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { approvalEvents, sequences, shotVersions, shots, shows } from "@/db/schema";
+import { callRuntime } from "@/lib/runtime";
 
 // Creation is scoped to the parent context, strictly: a show is created
 // only from the shows-list root, a sequence only from inside a show page,
@@ -125,6 +126,8 @@ export async function submitHumanApproval(
   shotCode: string,
   shotId: string,
   shotVersionId: string,
+  versionNumber: number,
+  showName: string,
   formData: FormData,
 ) {
   const parsed = humanApprovalSchema.parse({
@@ -149,6 +152,29 @@ export async function submitHumanApproval(
     decision: parsed.decision,
     reason: parsed.reason ?? null,
   });
+
+  // A human approval is a real approval, same as an agent one - it should
+  // feed the same production memory (continuity_fingerprints) an agent
+  // approval does. This is a pure Postgres write with no Gemini call of
+  // its own to piggyback the extraction onto, so it calls out to the
+  // agent runtime for it. Best-effort: a fingerprint-extraction hiccup
+  // shouldn't block the approval decision itself from landing.
+  if (parsed.decision === "approved") {
+    try {
+      await callRuntime("/runs/extract-fingerprint", {
+        method: "POST",
+        body: JSON.stringify({
+          shot_code: shotCode,
+          version_number: versionNumber,
+          show_name: showName,
+        }),
+      });
+    } catch {
+      // Logged nowhere yet beyond this - real gap, not worth blocking the
+      // approval write over. Same "best effort" as the rest of this
+      // enrichment step.
+    }
+  }
 
   const path = `/dashboard/${showId}/${sequenceCode}/${shotCode}`;
   revalidatePath(path);
