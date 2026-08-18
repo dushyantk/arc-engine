@@ -163,8 +163,13 @@ hand; worth a real product decision later (see Phase 3 note below). Total real s
       `components/sequence-player.tsx`. Caught and fixed a real bug: reintroduced the same SSR
       video-error race already fixed on the shot detail page by not reusing `ShotVideo` at first —
       see `generations/LEDGER.md` Phase 3 §18.
-- [ ] Loading and error states for slow/failed data fetches (empty states for seed data are done;
-      loading/error states for live agent runs are not)
+- [x] Loading and error states for slow/failed data fetches. `app/dashboard/loading.tsx` (skeleton
+      while Postgres/ClickHouse fetches are in flight), `app/error.tsx` (styled retry boundary —
+      has to live at the app root, not `app/dashboard/error.tsx`, since a segment's error.tsx
+      doesn't catch its own `layout.tsx` throwing, and the rail's live queries run in
+      `dashboard/layout.tsx`; verified for real by pointing ClickHouse at an unreachable port and
+      confirming the boundary rendered, then reverting), `app/dashboard/not-found.tsx` (styled 404
+      for an unknown shot code, rail still visible).
 - [ ] Open product question: `shot.status` currently reflects whichever version was *last
       evaluated*, not the latest version number — SQ010 hit this for real on 2026-08-17 (SH020
       reads `approved` while its latest version, v6, reads `failed`, because the approving
