@@ -206,6 +206,53 @@ what real runs actually exercised. Every item below was verified against the liv
 real ClickHouse queries, real page loads), not inferred. Ordered by how much each one undermines
 the product's own core claim (supervision with full lineage).
 
+### Operator control plane — the structural gap
+
+The finding that outranks everything else in this audit, named directly: **the dashboard has zero
+write paths.** Every route in the Next app and the FastAPI sidecar is a GET; every state change
+the system has ever made (runs, approvals, recanonization, reference uploads) went through CLI
+commands and ad-hoc scripts. The hierarchy — show → sequence → shot → version — exists only as
+seed fixtures the UI reads back. A supervisor product with no operator verbs is a demo board, not
+a tool. This section absorbs and widens the FastAPI-run-trigger and needs_human items below.
+
+In hierarchy order:
+
+- [ ] **Entity hierarchy: shows on top, creatable at every level.** The hierarchy isn't just
+      read-only, it isn't even navigable — there is no show level in the UI at all. The dashboard
+      hard-jumps into the first sequence of the first show (`limit(1)` queries in
+      `getSequenceOverview`), so "Platform Chase" is ambient context, not an entity you arrived
+      at. Build the real tree: shows list as the dashboard root → show page (sequences +
+      references) → sequence page (shots, what `/dashboard` is today) → shot page. And create at
+      every level: new show, new sequence (code, description), new shot (code, order index,
+      screen direction) — none of which exist today in UI *or* CLI; the whole hierarchy is seed
+      fixtures. A second show is currently impossible without writing SQL by hand.
+- [ ] **Brief authoring and persistence.** The scene goal that drives every run exists only as a
+      CLI `--goal` argument — `shots` has no brief column, and only the planner's *output* prompt
+      is persisted. The human intent that started each generation is not in the system at all: a
+      real lineage hole in a product whose pitch is full lineage. Add `shots.brief`, author/edit
+      it in the shot view, have runs consume it, and stamp the brief text used onto each version
+      row.
+- [ ] **Run control.** Start a run from the shot view — model tier choice, explicit cost
+      consent, and a per-run budget cap — plus cancel-in-flight, and the CLI's other two real
+      modes (`--recritique-version`, `--reuse-prompt-from-version`) as operator actions. Backed
+      by FastAPI endpoints with a single-flight lock (one real-money run at a time). The live
+      session view already exists as the monitoring half; this is the missing initiating half.
+- [ ] **Approval control.** Human approve/reject/veto at version level with a required reason,
+      writing `approval_events` with `actor='human'` and moving shot status. Not just as the
+      `needs_human` resolution path — the critic non-determinism documented in the ledger (§17)
+      is exactly why a human veto over *agent approvals* must exist too. This is the
+      "human-in-the-loop where production risk requires it" the architecture promises.
+- [ ] **Reference control.** Upload and lock/unlock references from the UI —
+      `ingest_reference_asset()` already exists server-side and has never been callable from the
+      product. Pairs with the references view task below.
+- [ ] **Budget visibility at the point of consent.** Show cumulative and per-shot real spend
+      (already in `agent_decision_log`) next to every start-run button, so cost consent is
+      informed rather than a bare confirm dialog.
+
+Recommended beta cut, strongest first: entity hierarchy (navigable tree + create at every level)
+plus brief authoring + run control + approval control are the minimum for this to stop being a
+demo board; reference upload and budget polish are fast-follows.
+
 ### Agent loop & backend
 
 - [ ] **Real runs never write production memory.** The critic inserts nothing into
