@@ -263,11 +263,15 @@ In hierarchy order:
         actually stop real money would be worse than no button. Needs its own design pass on what
         "cancel" honestly means once money may already be spent.
   - [ ] **Not built: per-run budget cap.** No enforcement yet of a spending ceiling across runs.
-- [ ] **Approval control.** Human approve/reject/veto at version level with a required reason,
-      writing `approval_events` with `actor='human'` and moving shot status. Not just as the
-      `needs_human` resolution path — the critic non-determinism documented in the ledger (§17)
-      is exactly why a human veto over *agent approvals* must exist too. This is the
-      "human-in-the-loop where production risk requires it" the architecture promises.
+- [x] **Approval control.** Human approve/reject at version level with a required reason (Zod,
+      enforced both client- and server-side), writing a real `approval_events` row with
+      `actor='human'` and moving shot status — rejection moves the shot to `revise`, not
+      `needs_human`, since it was already reviewed by a human. A real veto, not just a
+      `needs_human` resolution path: works on any version, including one an agent already marked
+      `approved`, which is exactly why it exists (critic non-determinism, ledger §17). Verified
+      end to end for real — submitted an actual rejection with real reasoning on SH020 v006,
+      confirmed the real status change and the real `approval_events` row (correct actor,
+      timestamp, and exact reason text) afterward. See `generations/LEDGER.md` Audit §29.
 - [ ] **Reference control.** Upload and lock/unlock references from the UI —
       `ingest_reference_asset()` already exists server-side and has never been callable from the
       product. Pairs with the references view task below.
@@ -275,9 +279,14 @@ In hierarchy order:
       (already in `agent_decision_log`) next to every start-run button, so cost consent is
       informed rather than a bare confirm dialog.
 
-Recommended beta cut, strongest first: entity hierarchy (navigable tree + create at every level)
-plus brief authoring + run control + approval control are the minimum for this to stop being a
-demo board; reference upload and budget polish are fast-follows.
+**Beta-cut status: done.** Entity hierarchy, brief authoring, run control, and approval control —
+the four items judged the minimum for this to stop being a demo board — are all built and
+verified for real (`generations/LEDGER.md` Audit §26–29). The dashboard has real write paths at
+every level now: create a show/sequence/shot, author a brief, start a real run with real cost
+consent, watch it live, and a human can approve, reject, or veto any version with a recorded
+reason. Reference upload/locking and budget-at-point-of-consent remain as fast-follows, along
+with cancel-in-flight and a per-run budget cap (both deliberately deferred under Run control
+above, not forgotten).
 
 ### Agent loop & backend
 
