@@ -33,6 +33,7 @@ export type ExportPackage = {
     generationSettings: unknown;
     videoAssetUrl: string | null;
     hasVideoBytes: boolean;
+    briefUsed: string | null;
     createdAt: Date;
   } | null;
   referenceAssets: ExportReferenceAsset[];
@@ -95,6 +96,7 @@ export async function getExportPackage(shotId: string): Promise<ExportPackage | 
         hasVideoBytes: approvedVersionRow.videoAssetUrl
           ? await objectExists(approvedVersionRow.videoAssetUrl)
           : false,
+        briefUsed: approvedVersionRow.briefUsed,
         createdAt: approvedVersionRow.createdAt,
       }
     : null;

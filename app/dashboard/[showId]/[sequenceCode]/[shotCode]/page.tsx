@@ -2,9 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getShotDetail } from "@/lib/data";
+import { updateShotBrief } from "@/lib/actions";
 import { ShotStatusBadge, VersionStatusBadge } from "@/components/status-badge";
 import { ShotVideo } from "@/components/shot-video";
 import { QcReport } from "@/components/qc-report";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +29,13 @@ export default async function ShotDetailPage({
   if (!detail) notFound();
 
   const { shot, sequence, versions } = detail;
+  const updateBriefForShot = updateShotBrief.bind(
+    null,
+    showId,
+    sequenceCode,
+    shot.code,
+    shot.id,
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -59,6 +69,31 @@ export default async function ShotDetailPage({
         </div>
       </div>
 
+      <div className="mt-6 rounded-lg border border-border bg-card p-5">
+        <h2 className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+          Brief
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          The scene goal a run plans against. Editing this doesn&apos;t
+          rewrite past versions — each one keeps a stamp of whatever brief
+          was live when it was generated.
+        </p>
+        <form action={updateBriefForShot} className="mt-3">
+          <Textarea
+            name="brief"
+            defaultValue={shot.brief ?? ""}
+            placeholder="Describe what this shot needs to accomplish — Dailies plans the actual generation prompt from this."
+            rows={3}
+            className="font-mono text-sm"
+          />
+          <div className="mt-2 flex justify-end">
+            <Button type="submit" size="sm">
+              Save brief
+            </Button>
+          </div>
+        </form>
+      </div>
+
       <div className="mt-8 flex flex-col gap-8">
         {versions.map((version) => (
           <div
@@ -81,9 +116,25 @@ export default async function ShotDetailPage({
               </div>
             ) : null}
 
-            <p className="mt-4 text-sm text-muted-foreground">
-              {version.generationPrompt}
-            </p>
+            {version.briefUsed ? (
+              <div className="mt-4">
+                <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                  Brief used
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {version.briefUsed}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-4">
+              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                Generation prompt
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {version.generationPrompt}
+              </p>
+            </div>
 
             {version.qcFindings.length > 0 ? (
               <div className="mt-4">

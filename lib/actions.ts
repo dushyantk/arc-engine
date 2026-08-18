@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
@@ -70,4 +71,32 @@ export async function createShot(
   });
   revalidatePath(`/dashboard/${showId}/${sequenceCode}`);
   redirect(`/dashboard/${showId}/${sequenceCode}`);
+}
+
+// The scene goal a run plans against. Previously only ever existed as a
+// CLI --goal argument - a real lineage hole in a product whose pitch is
+// full lineage, since the human intent behind every generation was never
+// in the system at all. server/run_session.py reads/writes this same
+// column, so authoring from here or from --goal keep one source of truth.
+const updateShotBriefSchema = z.object({
+  brief: z.string().trim().max(4000),
+});
+
+export async function updateShotBrief(
+  showId: string,
+  sequenceCode: string,
+  shotCode: string,
+  shotId: string,
+  formData: FormData,
+) {
+  const parsed = updateShotBriefSchema.parse({
+    brief: formData.get("brief"),
+  });
+  await db
+    .update(shots)
+    .set({ brief: parsed.brief || null })
+    .where(eq(shots.id, shotId));
+  const path = `/dashboard/${showId}/${sequenceCode}/${shotCode}`;
+  revalidatePath(path);
+  redirect(path);
 }

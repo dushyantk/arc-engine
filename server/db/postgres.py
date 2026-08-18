@@ -65,6 +65,53 @@ class Database:
             raise LookupError(f"shot {shot_id} not found")
         return Shot(**dict(row))
 
+    async def find_shot_by_code(
+        self, shot_code: str, show_name: str | None = None
+    ) -> tuple[Shot, Show, Sequence]:
+        """Cross-show shot lookup. Shot codes are only unique within a
+        sequence now that multiple real shows exist - pass show_name to
+        disambiguate, or this errors if the code matches more than one
+        show. (Previously this always searched a single hardcoded show,
+        which broke for real the moment a second show existed.)"""
+        base_query = """
+            SELECT sh.*, sq.code AS sequence_code, sq.description AS sequence_description,
+                   s.id AS show_id, s.name AS show_name, s.created_at AS show_created_at
+            FROM shots sh
+            JOIN sequences sq ON sq.id = sh.sequence_id
+            JOIN shows s ON s.id = sq.show_id
+            WHERE sh.code = $1
+        """
+        if show_name is not None:
+            rows = await self.pool.fetch(base_query + " AND s.name = $2", shot_code, show_name)
+        else:
+            rows = await self.pool.fetch(base_query, shot_code)
+
+        if not rows:
+            raise LookupError(
+                f"no shot {shot_code!r} found"
+                + (f" in show {show_name!r}" if show_name else "")
+            )
+        if len(rows) > 1:
+            shows = ", ".join(sorted({r["show_name"] for r in rows}))
+            raise LookupError(
+                f"shot {shot_code!r} exists in more than one show ({shows}) - pass --show to disambiguate"
+            )
+        row = rows[0]
+        shot = Shot(**{k: row[k] for k in Shot.model_fields})
+        show = Show(id=row["show_id"], name=row["show_name"], created_at=row["show_created_at"])
+        sequence = Sequence(
+            id=row["sequence_id"],
+            show_id=row["show_id"],
+            code=row["sequence_code"],
+            description=row["sequence_description"],
+        )
+        return shot, show, sequence
+
+    async def update_shot_brief(self, shot_id: UUID, brief: str) -> None:
+        await self.pool.execute(
+            "UPDATE shots SET brief = $2 WHERE id = $1", shot_id, brief
+        )
+
     async def get_reference_assets(self, show_id: UUID) -> list[ReferenceAsset]:
         rows = await self.pool.fetch(
             "SELECT * FROM reference_assets WHERE show_id = $1 AND locked_at IS NOT NULL",
@@ -118,12 +165,13 @@ class Database:
         generation_settings: dict[str, Any],
         video_asset_url: str | None,
         status: str,
+        brief_used: str | None = None,
     ) -> ShotVersion:
         row = await self.pool.fetchrow(
             """
             INSERT INTO shot_versions
-                (shot_id, version_number, generation_prompt, generation_settings, video_asset_url, status)
-            VALUES ($1, $2, $3, $4, $5, $6)
+                (shot_id, version_number, generation_prompt, generation_settings, video_asset_url, status, brief_used)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             """,
             shot_id,
@@ -132,6 +180,7 @@ class Database:
             generation_settings,
             video_asset_url,
             status,
+            brief_used,
         )
         assert row is not None
         return ShotVersion(**dict(row))

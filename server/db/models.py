@@ -35,6 +35,7 @@ class Shot(BaseModel):
     order_index: int
     screen_direction: str | None
     status: ShotStatus
+    brief: str | None
 
 
 class ShotVersion(BaseModel):
@@ -45,6 +46,7 @@ class ShotVersion(BaseModel):
     generation_settings: dict[str, object] | None
     video_asset_url: str | None
     status: ShotVersionStatus
+    brief_used: str | None
     created_at: datetime
 
 

@@ -56,6 +56,7 @@ export async function GET(
   const generation = pkg.approvedVersion
     ? {
         version: pkg.approvedVersion.versionNumber,
+        briefUsed: pkg.approvedVersion.briefUsed,
         prompt: pkg.approvedVersion.generationPrompt,
         settings: pkg.approvedVersion.generationSettings,
         hasStoredVideo: pkg.approvedVersion.hasVideoBytes,

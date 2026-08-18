@@ -23,7 +23,21 @@ planning call — isolates whether a defect is systematic (same prompt,
 same result) or just Veo's inherent run-to-run stochasticity (same prompt,
 different result). Still a real, billed Veo call.
 
+--goal is optional, not required: if given, it becomes the shot's
+persisted brief (shots.brief — the same field the dashboard's shot page
+authors/edits) and this run uses it; if omitted, the shot's already-
+authored brief is used, and this errors clearly if there isn't one yet.
+Either way, whatever scene goal actually drove a version is stamped onto
+that version's row (shot_versions.brief_used) for real lineage, since the
+brief can be edited later.
+
+--show disambiguates which show's shot to use, needed only when --shot's
+code exists in more than one show (shot codes are unique within a
+sequence, not globally, now that multiple real shows exist).
+
 Usage: uv run --directory server python run_session.py --shot SH020 --goal "..."
+       uv run --directory server python run_session.py --shot SH020
+       uv run --directory server python run_session.py --shot SH010 --show "Signal Loss" --goal "..."
        uv run --directory server python run_session.py --shot SH020 --recritique-version 3
        uv run --directory server python run_session.py --shot SH020 --reuse-prompt-from-version 5
 """
@@ -49,19 +63,18 @@ from models.contracts import GenerationSettings, QCFinding, ShotBrief, ShotStatu
 from storage.minio_client import get_bytes, get_client, put_bytes
 
 
-async def _load_show_shot(db: Database, shot_code: str) -> tuple[Shot, str, str, list[ReferenceAsset]]:
-    show_row = await db.pool.fetchrow("SELECT * FROM shows WHERE name = 'Platform Chase'")
-    if show_row is None:
-        raise SystemExit("Seed data not found — run `pnpm db:seed` first.")
-    show = await db.get_show(show_row["id"])
-
-    seq_row = await db.pool.fetchrow("SELECT id FROM sequences WHERE show_id = $1", show.id)
-    sequence = await db.get_sequence(seq_row["id"])
-
-    shots = await db.get_shots_for_sequence(sequence.id)
-    shot = next((s for s in shots if s.code == shot_code), None)
-    if shot is None:
-        raise SystemExit(f"Shot {shot_code} not found in {sequence.code}")
+async def _load_show_shot(
+    db: Database, shot_code: str, show_name: str | None = None
+) -> tuple[Shot, str, str, list[ReferenceAsset]]:
+    """Real cross-show lookup - shot codes are only unique within a
+    sequence now that multiple real shows exist (the entity hierarchy
+    build made a second show real). Pass show_name (--show) to disambiguate
+    when a code exists in more than one show; find_shot_by_code raises a
+    clear error otherwise rather than silently picking one."""
+    try:
+        shot, show, sequence = await db.find_shot_by_code(shot_code, show_name)
+    except LookupError as e:
+        raise SystemExit(str(e)) from e
 
     reference_assets = await db.get_reference_assets(show.id)
     return shot, show.name, sequence.code, reference_assets
@@ -119,6 +132,7 @@ async def _generate_store_and_critique(
     reference_assets: list[ReferenceAsset],
     brief: ShotBrief,
     run_id: str,
+    brief_used: str | None = None,
 ) -> None:
     """Shared tail end of both `run` and `reuse_prompt`: real Veo call,
     real storage, real critique, real approval evaluation."""
@@ -147,6 +161,7 @@ async def _generate_store_and_critique(
         generation_settings=brief.generation_settings.model_dump(),
         video_asset_url=video_key,
         status="candidate",
+        brief_used=brief_used,
     )
 
     print("critiquing...")
@@ -180,12 +195,14 @@ async def _generate_store_and_critique(
         print(f"  {instruction.revised_prompt[:200]}...")
 
 
-async def recritique(shot_code: str, version_number: int, video_override: Path | None) -> None:
+async def recritique(
+    shot_code: str, version_number: int, video_override: Path | None, show_name: str | None = None
+) -> None:
     """Re-evaluates an existing shot version. No Veo call, no new version."""
     db = Database()
     await db.connect()
 
-    shot, _, _, reference_assets = await _load_show_shot(db, shot_code)
+    shot, _, _, reference_assets = await _load_show_shot(db, shot_code, show_name)
     versions = await db.get_shot_versions(shot.id)
     target = next((v for v in versions if v.version_number == version_number), None)
     if target is None:
@@ -234,7 +251,7 @@ async def recritique(shot_code: str, version_number: int, video_override: Path |
     await db.close()
 
 
-async def reuse_prompt(shot_code: str, source_version: int) -> None:
+async def reuse_prompt(shot_code: str, source_version: int, show_name: str | None = None) -> None:
     """Generates a genuinely new version with the exact prompt/settings text
     from an existing version — no new planning call. Isolates whether a
     defect is systematic or just run-to-run stochasticity. Still a real,
@@ -242,7 +259,7 @@ async def reuse_prompt(shot_code: str, source_version: int) -> None:
     db = Database()
     await db.connect()
 
-    shot, _, _, reference_assets = await _load_show_shot(db, shot_code)
+    shot, _, _, reference_assets = await _load_show_shot(db, shot_code, show_name)
     versions = await db.get_shot_versions(shot.id)
     source = next((v for v in versions if v.version_number == source_version), None)
     if source is None:
@@ -262,23 +279,43 @@ async def reuse_prompt(shot_code: str, source_version: int) -> None:
     print(f"reusing v{source_version}'s exact prompt verbatim, no new planning call")
     print(f"prompt: {brief.prompt[:150]}...")
 
-    await _generate_store_and_critique(db, shot, shot_code, reference_assets, brief, run_id)
+    # The prompt is unchanged, so whatever brief drove it originally still
+    # applies - carry it forward rather than leaving this version's
+    # brief_used blank, which would misrepresent it as brief-less.
+    await _generate_store_and_critique(
+        db, shot, shot_code, reference_assets, brief, run_id, brief_used=source.brief_used
+    )
     await db.close()
 
 
-async def run(shot_code: str, scene_goal: str) -> None:
-    """Plans, generates (real Veo call), stores, and critiques a brand new version."""
+async def run(shot_code: str, scene_goal: str | None, show_name: str | None = None) -> None:
+    """Plans, generates (real Veo call), stores, and critiques a brand new
+    version. scene_goal is optional: if given, it becomes the shot's
+    persisted brief (CLI authoring, same field the dashboard edits); if
+    omitted, the shot's existing brief is used and this errors if there
+    isn't one yet."""
     db = Database()
     await db.connect()
 
-    shot, show_name, sequence_code, reference_assets = await _load_show_shot(db, shot_code)
+    shot, show_name_resolved, sequence_code, reference_assets = await _load_show_shot(
+        db, shot_code, show_name
+    )
+
+    if scene_goal:
+        await db.update_shot_brief(shot.id, scene_goal)
+    else:
+        scene_goal = shot.brief
+        if not scene_goal:
+            raise SystemExit(
+                f"{shot_code} has no brief authored yet — pass --goal, or author one in the dashboard first."
+            )
 
     run_id = new_run_id()
     print(f"run_id={run_id}")
     print("planning...")
 
     brief = await plan_shot(
-        show_name=show_name,
+        show_name=show_name_resolved,
         sequence_code=sequence_code,
         shot=shot,
         scene_goal=scene_goal,
@@ -287,29 +324,36 @@ async def run(shot_code: str, scene_goal: str) -> None:
     )
     print(f"brief ready. prompt: {brief.prompt[:120]}...")
 
-    # No real reference photography available yet (seeded refs are rows only,
-    # no uploaded bytes) — this falls back to text-only generation. See
-    # BUILD_PLAN.md Phase 2 for the follow-up (extract stills from an
-    # approved shot as real image references).
-    await _generate_store_and_critique(db, shot, shot_code, reference_assets, brief, run_id)
+    await _generate_store_and_critique(
+        db, shot, shot_code, reference_assets, brief, run_id, brief_used=scene_goal
+    )
     await db.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--shot", required=True)
-    parser.add_argument("--goal", help="Required unless --recritique-version/--reuse-prompt-from-version is given.")
+    parser.add_argument(
+        "--show",
+        default=None,
+        help="Disambiguates which show's shot to use, when --shot's code exists in more than one.",
+    )
+    parser.add_argument(
+        "--goal",
+        default=None,
+        help="Scene goal. If omitted, uses the shot's already-authored brief (dashboard or a prior --goal); errors if neither exists. If given, persists as the shot's brief.",
+    )
     parser.add_argument("--recritique-version", type=int, default=None)
     parser.add_argument("--reuse-prompt-from-version", type=int, default=None)
     parser.add_argument("--video-override", type=Path, default=None)
     args = parser.parse_args()
 
     if args.recritique_version is not None:
-        asyncio.run(recritique(args.shot, args.recritique_version, args.video_override))
+        asyncio.run(
+            recritique(args.shot, args.recritique_version, args.video_override, args.show)
+        )
     elif args.reuse_prompt_from_version is not None:
-        asyncio.run(reuse_prompt(args.shot, args.reuse_prompt_from_version))
+        asyncio.run(reuse_prompt(args.shot, args.reuse_prompt_from_version, args.show))
     else:
-        if not args.goal:
-            raise SystemExit("--goal is required unless --recritique-version or --reuse-prompt-from-version is given")
-        asyncio.run(run(args.shot, args.goal))
+        asyncio.run(run(args.shot, args.goal, args.show))
     sys.exit(0)
