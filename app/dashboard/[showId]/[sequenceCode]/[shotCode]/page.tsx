@@ -8,6 +8,8 @@ import { ShotVideo } from "@/components/shot-video";
 import { QcReport } from "@/components/qc-report";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { StartRunPanel } from "@/components/start-run-panel";
+import { VersionRunActions } from "@/components/version-run-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,7 @@ export default async function ShotDetailPage({
 
   if (!detail) notFound();
 
-  const { shot, sequence, versions } = detail;
+  const { shot, sequence, show, versions } = detail;
   const updateBriefForShot = updateShotBrief.bind(
     null,
     showId,
@@ -66,6 +68,11 @@ export default async function ShotDetailPage({
             Export &rarr;
           </Link>
           <ShotStatusBadge status={shot.status} />
+          <StartRunPanel
+            shotCode={shot.code}
+            showName={show?.name ?? ""}
+            hasBrief={Boolean(shot.brief)}
+          />
         </div>
       </div>
 
@@ -104,7 +111,14 @@ export default async function ShotDetailPage({
               <p className="font-mono text-sm font-semibold">
                 v{String(version.versionNumber).padStart(3, "0")}
               </p>
-              <VersionStatusBadge status={version.status} />
+              <div className="flex items-center gap-3">
+                <VersionRunActions
+                  shotCode={shot.code}
+                  showName={show?.name ?? ""}
+                  versionNumber={version.versionNumber}
+                />
+                <VersionStatusBadge status={version.status} />
+              </div>
             </div>
 
             {version.videoAssetUrl ? (

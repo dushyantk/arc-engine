@@ -39,6 +39,13 @@ def estimate_veo_cost(model: str, seconds: float) -> float:
     return _VEO_PRICING_PER_SECOND.get(model, 0.0) * seconds
 
 
+def get_veo_pricing() -> dict[str, float]:
+    """Real per-second Veo pricing by model tier - the single source of
+    truth an operator's cost-consent UI reads from, rather than a second,
+    driftable copy of the same numbers."""
+    return dict(_VEO_PRICING_PER_SECOND)
+
+
 def _client() -> clickhouse_connect.driver.Client:
     return clickhouse_connect.get_client(
         host=os.environ.get("CLICKHOUSE_HOST", "localhost"),

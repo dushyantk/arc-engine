@@ -196,9 +196,16 @@ async def _generate_store_and_critique(
 
 
 async def recritique(
-    shot_code: str, version_number: int, video_override: Path | None, show_name: str | None = None
-) -> None:
-    """Re-evaluates an existing shot version. No Veo call, no new version."""
+    shot_code: str,
+    version_number: int,
+    video_override: Path | None,
+    show_name: str | None = None,
+    run_id: str | None = None,
+) -> str:
+    """Re-evaluates an existing shot version. No Veo call, no new version.
+    Returns the run_id (generated if not given - the FastAPI runs endpoint
+    passes one in so it can hand it back to the caller immediately, before
+    this coroutine finishes)."""
     db = Database()
     await db.connect()
 
@@ -217,7 +224,7 @@ async def recritique(
         video_bytes = get_bytes(minio_client, bucket, target.video_asset_url)
     print(f"re-critiquing {shot_code} v{version_number} ({len(video_bytes)} bytes)...")
 
-    run_id = new_run_id()
+    run_id = run_id or new_run_id()
     print(f"run_id={run_id}")
 
     continuity_context = (
@@ -249,13 +256,19 @@ async def recritique(
         print(f"  {instruction.revised_prompt[:200]}...")
 
     await db.close()
+    return run_id
 
 
-async def reuse_prompt(shot_code: str, source_version: int, show_name: str | None = None) -> None:
+async def reuse_prompt(
+    shot_code: str,
+    source_version: int,
+    show_name: str | None = None,
+    run_id: str | None = None,
+) -> str:
     """Generates a genuinely new version with the exact prompt/settings text
     from an existing version — no new planning call. Isolates whether a
     defect is systematic or just run-to-run stochasticity. Still a real,
-    billed Veo call and a real new shot_versions row."""
+    billed Veo call and a real new shot_versions row. Returns the run_id."""
     db = Database()
     await db.connect()
 
@@ -274,7 +287,7 @@ async def reuse_prompt(shot_code: str, source_version: int, show_name: str | Non
         prompt=source.generation_prompt,
         generation_settings=GenerationSettings.model_validate(source.generation_settings),
     )
-    run_id = new_run_id()
+    run_id = run_id or new_run_id()
     print(f"run_id={run_id}")
     print(f"reusing v{source_version}'s exact prompt verbatim, no new planning call")
     print(f"prompt: {brief.prompt[:150]}...")
@@ -286,14 +299,24 @@ async def reuse_prompt(shot_code: str, source_version: int, show_name: str | Non
         db, shot, shot_code, reference_assets, brief, run_id, brief_used=source.brief_used
     )
     await db.close()
+    return run_id
 
 
-async def run(shot_code: str, scene_goal: str | None, show_name: str | None = None) -> None:
+async def run(
+    shot_code: str,
+    scene_goal: str | None,
+    show_name: str | None = None,
+    run_id: str | None = None,
+    model_tier: str | None = None,
+) -> str:
     """Plans, generates (real Veo call), stores, and critiques a brand new
     version. scene_goal is optional: if given, it becomes the shot's
     persisted brief (CLI authoring, same field the dashboard edits); if
     omitted, the shot's existing brief is used and this errors if there
-    isn't one yet."""
+    isn't one yet. model_tier, if given, deterministically overrides
+    whatever Veo model the planner chose (it's LLM-picked structured
+    output, not otherwise steerable) - real operator tier choice, not a
+    UI control that doesn't actually do anything. Returns the run_id."""
     db = Database()
     await db.connect()
 
@@ -310,7 +333,7 @@ async def run(shot_code: str, scene_goal: str | None, show_name: str | None = No
                 f"{shot_code} has no brief authored yet — pass --goal, or author one in the dashboard first."
             )
 
-    run_id = new_run_id()
+    run_id = run_id or new_run_id()
     print(f"run_id={run_id}")
     print("planning...")
 
@@ -322,12 +345,15 @@ async def run(shot_code: str, scene_goal: str | None, show_name: str | None = No
         reference_assets=reference_assets,
         run_id=run_id,
     )
+    if model_tier:
+        brief.generation_settings.model = model_tier
     print(f"brief ready. prompt: {brief.prompt[:120]}...")
 
     await _generate_store_and_critique(
         db, shot, shot_code, reference_assets, brief, run_id, brief_used=scene_goal
     )
     await db.close()
+    return run_id
 
 
 if __name__ == "__main__":
