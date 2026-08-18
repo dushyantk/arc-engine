@@ -1,4 +1,4 @@
-import { asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   approvalEvents,
@@ -179,6 +179,49 @@ export async function getSessionEvents(runId: string, sinceIso?: string) {
   });
   const rows = await result.json<DecisionLogRow>();
   return rows.map(toDecisionLogEvent);
+}
+
+// Approved shots played back to back, in shot order. A shot's *approved*
+// version isn't necessarily its latest one - SH020 is the real example:
+// shots.status flipped to approved via a re-critique of v5, while v6 (the
+// latest version chronologically) is still failed. Playback follows the
+// same rule as the rest of the product: find the actual approved version
+// row, don't assume "latest == approved."
+export async function getPlaybackSequence() {
+  const [show] = await db.select().from(shows).limit(1);
+  if (!show) return null;
+
+  const [sequence] = await db
+    .select()
+    .from(sequences)
+    .where(eq(sequences.showId, show.id))
+    .limit(1);
+  if (!sequence) return null;
+
+  const shotRows = await db
+    .select()
+    .from(shots)
+    .where(eq(shots.sequenceId, sequence.id))
+    .orderBy(asc(shots.orderIndex));
+
+  const items = await Promise.all(
+    shotRows.map(async (shot) => {
+      const [approvedVersion] = await db
+        .select()
+        .from(shotVersions)
+        .where(
+          and(
+            eq(shotVersions.shotId, shot.id),
+            eq(shotVersions.status, "approved"),
+          ),
+        )
+        .orderBy(desc(shotVersions.versionNumber))
+        .limit(1);
+      return { shot, approvedVersion: approvedVersion ?? null };
+    }),
+  );
+
+  return { show, sequence, items };
 }
 
 export async function getSequenceOverview() {

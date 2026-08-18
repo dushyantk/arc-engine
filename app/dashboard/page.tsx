@@ -47,9 +47,19 @@ export default async function DashboardPage() {
             </p>
           ) : null}
         </div>
-        <p className="font-mono text-sm text-muted-foreground">
-          {approvedCount} / {shots.length} approved
-        </p>
+        <div className="text-right">
+          <p className="font-mono text-sm text-muted-foreground">
+            {approvedCount} / {shots.length} approved
+          </p>
+          {approvedCount > 0 ? (
+            <Link
+              href="/dashboard/playback"
+              className="mt-1 inline-block text-sm text-primary hover:underline"
+            >
+              Play approved cut &rarr;
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -67,6 +77,7 @@ export default async function DashboardPage() {
                     src={thumbnail}
                     alt={`Latest generated frame from ${shot.code}`}
                     fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                     className="object-cover"
                   />
                 ) : (
