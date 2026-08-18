@@ -99,31 +99,32 @@ export default function LandingPage() {
             <Film className="size-[18px] text-primary" />
             DAILIES
           </span>
-          <nav className="flex items-center gap-6">
+          <nav className="hidden items-center gap-6 sm:flex">
             <Link
               href="#problem"
-              className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline"
+              className="text-sm text-muted-foreground hover:text-foreground"
             >
               Product
             </Link>
             <Link
               href="#how-it-works"
-              className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline"
+              className="text-sm text-muted-foreground hover:text-foreground"
             >
               How it works
             </Link>
             <Link
               href="/dashboard"
-              className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline"
+              className="text-sm text-muted-foreground hover:text-foreground"
             >
               Demo
             </Link>
-            <Button
-              render={<Link href="/dashboard">{CTA_LABEL}</Link>}
-              nativeButton={false}
-              size="sm"
-            />
           </nav>
+          <Button
+            render={<Link href="/dashboard">{CTA_LABEL}</Link>}
+            nativeButton={false}
+            size="sm"
+            className="rounded-[8px]"
+          />
         </div>
       </header>
 
@@ -132,7 +133,7 @@ export default function LandingPage() {
         <section className="mx-auto max-w-7xl px-6 pt-16 pb-20 sm:pt-20">
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
             <div>
-              <h1 className="font-heading max-w-[15ch] text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+              <h1 className="font-heading max-w-[15ch] text-[clamp(26px,3vw,36px)] leading-[1.12] font-[650] tracking-[-0.01em] text-balance">
                 Continuity is the hard problem. We built the supervisor for
                 it.
               </h1>
@@ -151,6 +152,7 @@ export default function LandingPage() {
                   }
                   nativeButton={false}
                   size="lg"
+                  className="rounded-[10px]"
                 />
               </div>
             </div>
@@ -319,6 +321,7 @@ export default function LandingPage() {
                 }
                 nativeButton={false}
                 size="lg"
+                className="rounded-[10px]"
               />
             </div>
           </div>
