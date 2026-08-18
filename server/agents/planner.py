@@ -79,6 +79,14 @@ footage and checking it by hand, not theorized:
    terms first, with anatomical side as secondary context only. Keep the two hands' actions in
    separate sentences rather than one combined clause regardless.
 
+   Never qualify screen-left/screen-right with a body-relative phrase like "relative to her body"
+   or "relative to her position" — a real generated shot for SH010 did exactly this ("in her right
+   hand, positioned screen-right relative to her body") and the suitcase still rendered
+   screen-left, twice in a row. That qualifier reopens the same ambiguity screen-left/screen-right
+   exists to close: it invites reading the position as anchored to the character's own facing
+   rather than to the fixed camera frame. State the screen position as an absolute fact about the
+   frame — "positioned screen-right" full stop, nothing appended after it.
+
 3. **"Static shot" can bleed into "static subject."** This is real cinematography shorthand for a
    locked-off, unmoving camera — it says nothing about whether the character moves. A model
    without deep cinematography grounding may apply "static" to the whole scene, including the
@@ -98,6 +106,16 @@ footage and checking it by hand, not theorized:
    actually approved. If a shot introduces a character/prop/environment with no matching reference
    asset yet, note in the invariants list that its appearance isn't grounded and will vary between
    generations until a reference exists.
+
+   The Maya character reference photo itself has a real limitation worth defending against: it
+   shows her facial mark looking like a fresh, wet, actively-bleeding injury (extracted from a
+   dramatic mid-scene moment), not the "small healed scar" the continuity record actually
+   establishes. Two real SH010 generations conditioned on it both rendered a fresh red
+   mark/wound instead of a healed scar — the image is winning over the text on this specific
+   detail. Defend against it explicitly in the prompt: state that despite any fresh-looking mark
+   in the reference photo, her scar is old, healed, and faded — pale/silvery, not red or wet —
+   and describe it that way in its own sentence rather than assuming the reference image alone
+   conveys "healed."
 
 5. **Relying on blur/focus to hide an object has a 0-for-3 real track record.** Three separate real
    generations asked for a background object (a station clock) to be blurred or out of focus so it
