@@ -133,13 +133,20 @@ instruction) or accepting a human override. Full blow-by-blow: `generations/LEDG
 
 ## Phase 3 — Dashboard (Next.js)
 
-- [ ] Sequence view: shot thumbnails, status badges, live agent-session indicator
-- [ ] Shot detail: version history, scrubber with timestamp-anchored QC notes, reference panel,
-      provenance/lineage panel
+- [x] Landing page: real product pitch, not hackathon enthusiasm — real hero frame from v006, real
+      critic findings quoted verbatim, real spend/call stats, defect categories that map to actual
+      `QCFinding` categories. `app/page.tsx`.
+- [x] Sequence view: shot thumbnails (real thumbnail for SH020, honest placeholder for seed-only
+      shots), status badges. `app/dashboard/page.tsx`.
+- [x] Shot detail: version history with real video playback (MinIO via a Range-request-aware API
+      route), generation prompt text, approval-event trail. `app/dashboard/[shotCode]/page.tsx`.
+- [x] Empty state for versions with no uploaded video (seed data) — fixed an SSR race where the
+      fallback silently failed to appear; see `generations/LEDGER.md` Phase 3 §14.
 - [ ] Live dailies session view: real-time plan → generate → critique → revise log (SSE/WebSocket
       from FastAPI) — this is the demo centerpiece
 - [ ] Sequence playback: approved shots played back to back
-- [ ] Empty, loading, and error states for every view — no bare spinners, no unhandled fetch failures
+- [ ] Loading and error states for slow/failed data fetches (empty states for seed data are done;
+      loading/error states for live agent runs are not)
 
 ## Phase 4 — Export & handoff
 

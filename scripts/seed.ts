@@ -286,7 +286,7 @@ async function main() {
         palette: ["#0a0d12", "#8b1a1a", "#c7a86b"],
         approvedReferenceFrames: [maya.imageUrl, suitcase.imageUrl, environment.imageUrl],
         generationPrompt: "Maya runs across Platform 2 at night in the rain, carrying her red leather suitcase in her right hand. Key light camera-left. Wide shot, L to R.",
-        generationSettings: { model: "veo-3.1", seed: 10201 },
+        generationSettings: { model: "veo-3.1", seed: 10201, imageRefs: [] },
         qcFindings: [],
         supervisorNotes: "Clean first generation. No revision needed.",
         approvalStatus: "approved",
