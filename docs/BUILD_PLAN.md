@@ -226,6 +226,11 @@ In hierarchy order:
       every level: new show, new sequence (code, description), new shot (code, order index,
       screen direction) — none of which exist today in UI *or* CLI; the whole hierarchy is seed
       fixtures. A second show is currently impossible without writing SQL by hand.
+      **Creation is scoped to the parent context, strictly:** "New show" exists only on the shows
+      list (root), "New sequence" only inside a show page, "New shot" only inside a sequence page
+      — never from a sibling or deeper level. Versions have no create form at all: a version is
+      only ever produced by a run, so the create verb at that level is "start a run" (run control
+      below), not an insert.
 - [ ] **Brief authoring and persistence.** The scene goal that drives every run exists only as a
       CLI `--goal` argument — `shots` has no brief column, and only the planner's *output* prompt
       is persisted. The human intent that started each generation is not in the system at all: a
