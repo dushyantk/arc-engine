@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { sequences, shots, shows } from "@/db/schema";
+import { approvalEvents, sequences, shotVersions, shots, shows } from "@/db/schema";
 
 // Creation is scoped to the parent context, strictly: a show is created
 // only from the shows-list root, a sequence only from inside a show page,
@@ -96,6 +96,60 @@ export async function updateShotBrief(
     .update(shots)
     .set({ brief: parsed.brief || null })
     .where(eq(shots.id, shotId));
+  const path = `/dashboard/${showId}/${sequenceCode}/${shotCode}`;
+  revalidatePath(path);
+  redirect(path);
+}
+
+// Human approve/reject at version level - the "human-in-the-loop where
+// production risk requires it" the architecture promises, and not just a
+// needs_human resolution path: a human can veto an agent's own "approved"
+// call too, which is exactly why this exists (see the critic
+// non-determinism documented in generations/LEDGER.md - the same video
+// has genuinely gotten different verdicts on independent passes). Writes
+// a real approval_events row with actor='human' rather than silently
+// mutating status with no record of who decided or why.
+const humanApprovalSchema = z
+  .object({
+    decision: z.enum(["approved", "rejected"]),
+    reason: z.string().trim().max(2000).optional(),
+  })
+  .refine((data) => data.decision === "approved" || !!data.reason, {
+    message: "A reason is required when rejecting.",
+    path: ["reason"],
+  });
+
+export async function submitHumanApproval(
+  showId: string,
+  sequenceCode: string,
+  shotCode: string,
+  shotId: string,
+  shotVersionId: string,
+  formData: FormData,
+) {
+  const parsed = humanApprovalSchema.parse({
+    decision: formData.get("decision"),
+    reason: formData.get("reason") || undefined,
+  });
+
+  const versionStatus = parsed.decision === "approved" ? "approved" : "failed";
+  // A human veto moves the shot to revise (try again with feedback), not
+  // needs_human - it was already reviewed by a human, that's the point.
+  const shotStatus = parsed.decision === "approved" ? "approved" : "revise";
+
+  await db
+    .update(shotVersions)
+    .set({ status: versionStatus })
+    .where(eq(shotVersions.id, shotVersionId));
+  await db.update(shots).set({ status: shotStatus }).where(eq(shots.id, shotId));
+  await db.insert(approvalEvents).values({
+    shotId,
+    shotVersionId,
+    actor: "human",
+    decision: parsed.decision,
+    reason: parsed.reason ?? null,
+  });
+
   const path = `/dashboard/${showId}/${sequenceCode}/${shotCode}`;
   revalidatePath(path);
   redirect(path);

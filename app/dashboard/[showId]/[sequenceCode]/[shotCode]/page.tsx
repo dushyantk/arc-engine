@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getShotDetail } from "@/lib/data";
-import { updateShotBrief } from "@/lib/actions";
+import { submitHumanApproval, updateShotBrief } from "@/lib/actions";
 import { ShotStatusBadge, VersionStatusBadge } from "@/components/status-badge";
 import { ShotVideo } from "@/components/shot-video";
 import { QcReport } from "@/components/qc-report";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StartRunPanel } from "@/components/start-run-panel";
 import { VersionRunActions } from "@/components/version-run-actions";
+import { HumanApprovalActions } from "@/components/human-approval-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,17 @@ export default async function ShotDetailPage({
                   shotCode={shot.code}
                   showName={show?.name ?? ""}
                   versionNumber={version.versionNumber}
+                />
+                <HumanApprovalActions
+                  versionLabel={`v${String(version.versionNumber).padStart(3, "0")}`}
+                  submitAction={submitHumanApproval.bind(
+                    null,
+                    showId,
+                    sequenceCode,
+                    shot.code,
+                    shot.id,
+                    version.id,
+                  )}
                 />
                 <VersionStatusBadge status={version.status} />
               </div>
