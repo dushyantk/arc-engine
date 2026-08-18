@@ -38,7 +38,7 @@ export default async function DashboardPage() {
           <p className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
             {show.name}
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1 className="font-heading mt-1 text-2xl font-semibold tracking-tight">
             {sequence.code}
           </h1>
           {sequence.description ? (
