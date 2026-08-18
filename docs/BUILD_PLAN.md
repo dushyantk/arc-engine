@@ -131,12 +131,18 @@ live session view — see `generations/LEDGER.md` Phase 3 §16–17): the critic
 exact same video differed run to run, finding 0 fails and 1 tolerated warning this time against a
 harder finding previously. Worth being honest about rather than spinning as "solved": this is
 real evidence the critic isn't perfectly deterministic, not proof the clock defect is structurally
-fixed. All three shots (SH010, SH020, SH030) now read `approved`, but note SH020's *latest*
-version is still v6, marked `failed` — `shot.status` reflects the outcome of the most recent
-evaluation action, not necessarily of the latest version, so the sequence card and the version list
-can legitimately disagree at a glance. Left as real, unmassaged data rather than reconciled by
-hand; worth a real product decision later (see Phase 3 note below). Total real spend so far:
-**$13.23**, 55 API calls, 4 real Veo generations.
+fixed. (Note SH020's *latest* version is still v6, marked `failed` — `shot.status` reflects the
+outcome of the most recent evaluation action, not necessarily of the latest version; see the open
+product question in Phase 3.)
+
+**Status update 2026-08-18** (see `generations/LEDGER.md` §21–23): filled the SH010/SH030
+placeholders with real generations. SH030 reached `approved` with real stored footage (v5) after
+recanonizing Maya's facial mark — three real generations across two shots proved the "healed scar"
+canon was unproducible against the real reference photo, so production memory was corrected to
+match what actually renders. SH010 sits at `needs_human` after 3 real attempts (recurring hero-prop
+screen-side defect, never independently root-caused) — left as real, honest state, not forced
+through. Current sequence state: **2 of 3 shots approved with real footage** (SH020 v5, SH030 v5).
+Cumulative real spend: **$29.63, 91 agent calls, 9 real Veo generations.**
 
 ## Phase 3 — Dashboard (Next.js)
 
@@ -192,6 +198,84 @@ hand; worth a real product decision later (see Phase 3 note below). Total real s
 - [x] Along the way: uploaded real reference images (frames from SH020 v005, the actual approved
       version) to the `reference_assets` MinIO keys that had existed since Phase 1 with no bytes
       behind them. See `generations/LEDGER.md` Phase 3 §19.
+
+## Audit — 2026-08-18, gaps found end to end
+
+Full pass over agents, data stores, dashboard, and docs against what ARCHITECTURE.md promises and
+what real runs actually exercised. Every item below was verified against the live system (grep,
+real ClickHouse queries, real page loads), not inferred. Ordered by how much each one undermines
+the product's own core claim (supervision with full lineage).
+
+### Agent loop & backend
+
+- [ ] **Real runs never write production memory.** The critic inserts nothing into
+      `dailies.qc_findings` (the only rows there are seed data — which is why the QC report UI
+      renders only for seeded SH020 v002 and no real version), and nothing extracts a
+      `continuity_fingerprints` row when a version is approved. The planner's ClickHouse research
+      is reading memory frozen at the seed: SH030's real approval isn't in the record the next
+      shot's planning would consult. This contradicts the product's core "production memory"
+      claim. Wire both writes into the real loop: critic → `qc_findings` rows, approval →
+      fingerprint extraction + insert.
+- [ ] **No retry on the Veo call itself.** `generate_shot_version` raises raw on transient server
+      errors — hit for real on SH010 (code-13 internal error, after ~$0.03 of planner calls were
+      already spent; a second full attempt was needed). The planner/critic Gemini calls are
+      wrapped in `call_with_retry`; the most expensive call in the system is not. Add a bounded,
+      billing-aware retry (safe: the operation error path bills nothing — cost is only logged on
+      operation success).
+- [ ] **`needs_human` has no resolution path.** `approval_events.actor` supports `"human"` but no
+      UI or endpoint ever writes it. SH010 is at `needs_human` right now with no product way to
+      approve, override, or reject — the state the whole loop escalates to is a dead end. Add a
+      human review action on shot detail (approve/reject + reason → `approval_events`
+      actor=human, shot status update).
+- [ ] **FastAPI runtime is `/health` only.** ARCHITECTURE says FastAPI owns the agent loop; in
+      reality `run_session.py` (CLI) does, and the dashboard can only watch runs, never start
+      one. Add a run-trigger endpoint (explicit cost-confirmation input, single-flight lock so
+      only one real-money run can be in flight) — this also makes the live session view
+      demoable without a terminal.
+- [ ] **Sequence-level continuity pass missing entirely.** ARCHITECTURE §1: "a sequence is
+      approved only when every shot is approved and a final cross-shot continuity pass agrees
+      they belong together." Nothing compares adjacent approved shots today; `sequences` has no
+      status column. This is the product's closing argument and it doesn't exist yet.
+- [ ] **Server entrypoints don't load `.env` and buffer stdout.** Both bit for real:
+      `KeyError: DATABASE_URL` on a bare invocation, and `run_id` staying invisible until process
+      exit (needed manual `PYTHONUNBUFFERED=1`) which blocked watching a live run. Load the repo
+      `.env` from the entrypoints; print run_id unbuffered.
+- [ ] **`scripts/seed.ts` re-seeds two known-bad states.** It still carries the
+      pre-recanonization scar text (3 `continuity_fingerprints` literals) and seeds SH010 v1 as
+      `approved` with a `videoAssetUrl` that has no bytes behind it — the exact source of the
+      stale-approved bug fixed in 05c90c4. It's also not idempotent against the real rows that
+      now exist. Update the canon text, stop seeding fake version-level approvals, and refuse to
+      run (or scope down) when real data is present.
+- [ ] **Live-DB hygiene: SH010 v1 still reads `status='approved'`.** Playback/export now gate
+      around it, but the row itself is still wrong. Resolve together with the open shot.status
+      product question in Phase 3 (whether re-evaluations of old versions move shot status, and
+      whether version status should ever survive contradicting later evidence).
+
+### Dashboard & frontend
+
+- [ ] **Sequence-view thumbnails are a hardcoded map that now lies.** `REAL_THUMBNAILS` in
+      `app/dashboard/page.tsx` knows only SH020. SH030's card says "Seed data, not yet generated"
+      over real approved footage; SH010's says the same over 3 real generations. Store or extract
+      a real poster frame per version (at generation time, or server-side from MinIO) and delete
+      the hardcoded map and the placeholder copy.
+- [ ] **Landing-page stats are hardcoded and stale.** `app/page.tsx` STATS says
+      "$13.23 / 55 calls / 6 versions / 4 generations"; real totals as of this audit are
+      **$29.63 / 91 calls / 9 generations**. Source them from ClickHouse (the queries already
+      exist in `lib/data.ts`) or visibly date-stamp them. `DEFECT_CATEGORIES` also omits two
+      categories the real critic has actually emitted in production (`camera_setup`,
+      `lighting_continuity`).
+- [ ] **REFERENCES rail item is a dead label** even though real reference images now exist in
+      MinIO with `lockedAt`/`approvedBy` set in Postgres. Build the references view (image, type,
+      locked date, approver — the lineage the export's refs/ folder already draws from).
+- [ ] **EXPORT rail item is a dead label**; export exists per-shot only. Either a sequence-level
+      export page (bundle every approved shot) or link the rail to the per-shot export pages.
+- [ ] **Sessions list can't distinguish a live run from a finished one** (no running-now
+      indicator) and offers no way to start one (depends on the FastAPI run-trigger task above).
+- [ ] **Build-process ledger page** (standing request, 2026-08-17): surface the
+      `generations/LEDGER.md` narrative, the preserved generations/frames, and per-step costs as
+      a page on the portal — the "how this was actually built" exhibit. Media is gitignored by
+      design, so it needs a serving path (e.g. a MinIO `build-artifacts/` prefix mirroring
+      `generations/`).
 
 ## Phase 5 — Beta hardening
 
