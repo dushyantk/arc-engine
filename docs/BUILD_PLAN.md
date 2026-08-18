@@ -179,10 +179,19 @@ hand; worth a real product decision later (see Phase 3 note below). Total real s
 
 ## Phase 4 — Export & handoff
 
-- [ ] VFX package export: `plate/ gen/ refs/ metadata/` tree + `manifest.json` / `generation.json`
-      / `provenance.json` / `qc.json` / `notes.json`
-- [ ] Nuke script template generator (`.nk`: Read plate, Read gen, Merge, OCIO, Grain, Write)
-- [ ] Export panel UI: package tree preview + Nuke script preview + download
+- [x] VFX package export: `plate/ gen/ refs/ metadata/` tree + `manifest.json` / `generation.json`
+      / `provenance.json` / `qc.json` / `notes.json`. Real approved-version lookup (not "latest"),
+      real MinIO bytes, real ClickHouse-traced provenance. `lib/export.ts`,
+      `app/api/export/[shotCode]/route.ts`.
+- [x] Nuke script template generator (`.nk`: Read plate, Read gen, Merge, OCIO, Grain, Write).
+      `lib/nuke-script.ts`.
+- [x] Export panel UI: package tree preview + Nuke script preview + download.
+      `app/dashboard/[shotCode]/export/page.tsx`. Verified by downloading the real zip and
+      inspecting its contents directly, not just the preview — caught and fixed a real
+      preview/reality mismatch; see `generations/LEDGER.md` Phase 4 §20.
+- [x] Along the way: uploaded real reference images (frames from SH020 v005, the actual approved
+      version) to the `reference_assets` MinIO keys that had existed since Phase 1 with no bytes
+      behind them. See `generations/LEDGER.md` Phase 3 §19.
 
 ## Phase 5 — Beta hardening
 
