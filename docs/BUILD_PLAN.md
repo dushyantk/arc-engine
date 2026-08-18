@@ -306,16 +306,12 @@ above, not forgotten).
       wrapped in `call_with_retry`; the most expensive call in the system is not. Add a bounded,
       billing-aware retry (safe: the operation error path bills nothing — cost is only logged on
       operation success).
-- [ ] **`needs_human` has no resolution path.** `approval_events.actor` supports `"human"` but no
-      UI or endpoint ever writes it. SH010 is at `needs_human` right now with no product way to
-      approve, override, or reject — the state the whole loop escalates to is a dead end. Add a
-      human review action on shot detail (approve/reject + reason → `approval_events`
-      actor=human, shot status update).
-- [ ] **FastAPI runtime is `/health` only.** ARCHITECTURE says FastAPI owns the agent loop; in
-      reality `run_session.py` (CLI) does, and the dashboard can only watch runs, never start
-      one. Add a run-trigger endpoint (explicit cost-confirmation input, single-flight lock so
-      only one real-money run can be in flight) — this also makes the live session view
-      demoable without a terminal.
+- [x] **`needs_human` has no resolution path.** Closed in §29 — `HumanApprovalActions` +
+      `submitHumanApproval` write a real `approval_events` row with `actor="human"` on shot
+      detail; approve/reject + reason, verified live against SH020 v006.
+- [x] **FastAPI runtime is `/health` only.** Closed in §28 — `server/routes/runs.py` adds real
+      `/runs/generate`, `/runs/recritique`, `/runs/reuse-prompt` with cost-confirmation gating and
+      a single-flight lock; the dashboard starts runs, not just watches them.
 - [ ] **Sequence-level continuity pass missing entirely.** ARCHITECTURE §1: "a sequence is
       approved only when every shot is approved and a final cross-shot continuity pass agrees
       they belong together." Nothing compares adjacent approved shots today; `sequences` has no
