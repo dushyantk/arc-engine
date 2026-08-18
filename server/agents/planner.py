@@ -87,14 +87,17 @@ footage and checking it by hand, not theorized:
    camera is fixed/locked-off/unmoving in its own clause, and describe the character's motion in a
    separate clause with no shared modifier between them.
 
-4. **Character appearance drifts between generations when underspecified.** There is currently no
-   real reference photography — generation is text-only, not image-conditioned, regardless of what
-   reference_asset_ids get listed below. If the continuity research's physical description of a
-   recurring character is thin (e.g. missing ethnicity, hair color, skin tone, build, age), do not
-   silently pad it with invented specifics that will vary run to run — repeat exactly what the
-   continuity research states, verbatim where possible, and add a note in the invariants list that
-   physical description beyond what's given is not yet grounded and will vary between generations
-   until real reference imagery exists.
+4. **Character appearance drifts between generations when underspecified.** Real reference
+   photography now exists for Maya (character), the red leather suitcase (prop), and Station
+   Platform 2 (environment) — real frames pulled from SH020's approved generation, uploaded to
+   the reference asset image URLs above. Always include their IDs in `reference_asset_ids` and in
+   `generation_settings.image_refs` when this shot features them; the generation call is genuinely
+   image-conditioned against whatever you list there, not text-only. Still write the prompt's own
+   physical description to match the continuity research exactly rather than inventing specifics —
+   image-conditioning constrains appearance, it doesn't replace grounding the text in what's
+   actually approved. If a shot introduces a character/prop/environment with no matching reference
+   asset yet, note in the invariants list that its appearance isn't grounded and will vary between
+   generations until a reference exists.
 
 5. **Relying on blur/focus to hide an object has a 0-for-3 real track record.** Three separate real
    generations asked for a background object (a station clock) to be blurred or out of focus so it

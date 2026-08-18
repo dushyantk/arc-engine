@@ -35,6 +35,8 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
+from minio.error import S3Error
+
 from agents.approval import evaluate
 from agents.critic import critique_shot_version
 from agents.decision_log import new_run_id
@@ -93,6 +95,23 @@ async def _apply_result(
     return status
 
 
+async def _load_reference_images(reference_assets: list[ReferenceAsset]) -> dict[str, bytes]:
+    """Real reference bytes, keyed by reference_asset id (str) to match
+    ShotBrief.generation_settings.image_refs. Skips any asset whose
+    image_url doesn't actually resolve in MinIO instead of failing the
+    whole generation — a still-unfilled reference shouldn't block a shot
+    that doesn't need it."""
+    minio_client = get_client()
+    bucket = os.environ.get("MINIO_BUCKET", "dailies")
+    images: dict[str, bytes] = {}
+    for ref in reference_assets:
+        try:
+            images[str(ref.id)] = get_bytes(minio_client, bucket, ref.image_url)
+        except S3Error:
+            print(f"  no image bytes stored for reference asset {ref.name!r} ({ref.image_url}), skipping")
+    return images
+
+
 async def _generate_store_and_critique(
     db: Database,
     shot: Shot,
@@ -106,8 +125,13 @@ async def _generate_store_and_critique(
     existing_versions = await db.get_shot_versions(shot.id)
     next_version = max((v.version_number for v in existing_versions), default=0) + 1
 
+    reference_images = await _load_reference_images(reference_assets)
+    if brief.generation_settings.image_refs:
+        matched = [r for r in brief.generation_settings.image_refs if r in reference_images]
+        print(f"image-conditioning on {len(matched)}/{len(brief.generation_settings.image_refs)} requested reference(s)")
+
     print(f"generating v{next_version} with {brief.generation_settings.model} (this takes a few minutes)...")
-    video_bytes = await generate_shot_version(brief=brief, reference_images={}, run_id=run_id)
+    video_bytes = await generate_shot_version(brief=brief, reference_images=reference_images, run_id=run_id)
     print(f"video ready: {len(video_bytes)} bytes.")
 
     minio_client = get_client()
