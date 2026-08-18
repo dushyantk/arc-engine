@@ -212,6 +212,15 @@ export async function getVersionProvenance(shotCode: string, versionNumber: numb
 // latest version chronologically) is still failed. Playback follows the
 // same rule as the rest of the product: find the actual approved version
 // row, don't assume "latest == approved."
+//
+// Also gates on shots.status === "approved", not just "a version somewhere
+// has status=approved" - SH010 is the real example this caught: v1 (a
+// seed row, never really critiqued) still carries version status
+// "approved" even after v2/v3/v4 all failed for real and shots.status
+// moved to needs_human. Without this gate, playback would include SH010
+// as "approved footage" while the sequence view (which reads shots.status)
+// correctly excludes it - two dashboard views disagreeing about the same
+// real shot.
 export async function getPlaybackSequence() {
   const [show] = await db.select().from(shows).limit(1);
   if (!show) return null;
@@ -231,6 +240,9 @@ export async function getPlaybackSequence() {
 
   const items = await Promise.all(
     shotRows.map(async (shot) => {
+      if (shot.status !== "approved") {
+        return { shot, approvedVersion: null };
+      }
       const [approvedVersion] = await db
         .select()
         .from(shotVersions)

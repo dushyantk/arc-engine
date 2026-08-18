@@ -67,12 +67,19 @@ export async function getExportPackage(shotCode: string): Promise<ExportPackage 
     ? await db.select().from(shows).where(eq(shows.id, sequence.showId)).limit(1)
     : [];
 
-  const [approvedVersionRow] = await db
-    .select()
-    .from(shotVersions)
-    .where(and(eq(shotVersions.shotId, shot.id), eq(shotVersions.status, "approved")))
-    .orderBy(desc(shotVersions.versionNumber))
-    .limit(1);
+  // Gated on shot.status, not just "a version somewhere has status=approved" -
+  // same real bug as getPlaybackSequence (see lib/data.ts): a seed version can
+  // carry a stale "approved" marking that never got revoked when later real
+  // attempts failed and the shot's overall status moved to needs_human.
+  const [approvedVersionRow] =
+    shot.status === "approved"
+      ? await db
+          .select()
+          .from(shotVersions)
+          .where(and(eq(shotVersions.shotId, shot.id), eq(shotVersions.status, "approved")))
+          .orderBy(desc(shotVersions.versionNumber))
+          .limit(1)
+      : [];
 
   const approvedVersion = approvedVersionRow
     ? {
