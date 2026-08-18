@@ -229,12 +229,19 @@ In hierarchy order:
       shot and downloaded its real export zip at the new shot-id URL. See
       `generations/LEDGER.md` Phase "Audit" §26 for the account, including a real Base UI
       SSR/CSR hydration bug found and fixed along the way.
-- [ ] **Brief authoring and persistence.** The scene goal that drives every run exists only as a
-      CLI `--goal` argument — `shots` has no brief column, and only the planner's *output* prompt
-      is persisted. The human intent that started each generation is not in the system at all: a
-      real lineage hole in a product whose pitch is full lineage. Add `shots.brief`, author/edit
-      it in the shot view, have runs consume it, and stamp the brief text used onto each version
-      row.
+- [x] **Brief authoring and persistence.** `shots.brief` (live, editable) and
+      `shot_versions.brief_used` (a stamp of whatever brief was actually live when that version
+      generated — editing later doesn't rewrite history). Real editor on the shot detail page
+      (`lib/actions.ts`, Zod-validated), shown per version, carried into the export's
+      `generation.json`. `server/run_session.py --goal` is now optional — given, it persists as
+      the brief; omitted, it reads the shot's existing one and errors clearly if there isn't one.
+      Found and fixed a real, separate bug while wiring this: `_load_show_shot` hardcoded
+      `WHERE name = 'Platform Chase'`, broken the moment a second real show existed (SH010 now
+      collides across two shows) — replaced with `find_shot_by_code`, a real cross-show lookup
+      plus `--show` to disambiguate. Verified without spending on Veo: authored a real brief
+      through the dashboard, confirmed via a zero-cost Python check that the ambiguous lookup
+      correctly errors and `--show` correctly resolves it, reading back the exact saved text. See
+      `generations/LEDGER.md` Audit §27.
 - [ ] **Run control.** Start a run from the shot view — model tier choice, explicit cost
       consent, and a per-run budget cap — plus cancel-in-flight, and the CLI's other two real
       modes (`--recritique-version`, `--reuse-prompt-from-version`) as operator actions. Backed
