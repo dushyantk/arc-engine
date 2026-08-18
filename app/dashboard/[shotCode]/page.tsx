@@ -48,7 +48,15 @@ export default async function ShotDetailPage({
             </p>
           ) : null}
         </div>
-        <ShotStatusBadge status={shot.status} />
+        <div className="flex items-center gap-4">
+          <Link
+            href={`/dashboard/${shot.code}/export`}
+            className="text-sm text-primary hover:underline"
+          >
+            Export &rarr;
+          </Link>
+          <ShotStatusBadge status={shot.status} />
+        </div>
       </div>
 
       <div className="mt-8 flex flex-col gap-8">

@@ -1,0 +1,115 @@
+import JSZip from "jszip";
+import { NextRequest } from "next/server";
+import { getExportPackage } from "@/lib/export";
+import { generateNukeScript } from "@/lib/nuke-script";
+import { getObjectBytes } from "@/lib/minio";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ shotCode: string }> },
+) {
+  const { shotCode } = await params;
+  const pkg = await getExportPackage(shotCode);
+  if (!pkg) {
+    return new Response("Shot not found", { status: 404 });
+  }
+
+  const zip = new JSZip();
+  const root = zip.folder(shotCode)!;
+  root.folder("plate"); // no live-action plate ingested - see the .nk comment
+  const gen = root.folder("gen")!;
+  const refs = root.folder("refs")!;
+  const metadata = root.folder("metadata")!;
+
+  if (pkg.approvedVersion?.hasVideoBytes && pkg.approvedVersion.videoAssetUrl) {
+    const versionLabel = String(pkg.approvedVersion.versionNumber).padStart(3, "0");
+    const videoBytes = await getObjectBytes(pkg.approvedVersion.videoAssetUrl);
+    gen.file(`${shotCode}_gen_v${versionLabel}.mov`, videoBytes);
+  }
+
+  for (const ref of pkg.referenceAssets) {
+    if (!ref.hasImageBytes) continue;
+    const bytes = await getObjectBytes(ref.imageUrl);
+    const filename = ref.imageUrl.split("/").pop() ?? `${ref.name}.png`;
+    refs.file(filename, bytes);
+  }
+
+  const manifest = {
+    shot: pkg.shot.code,
+    sequence: pkg.sequence.code,
+    show: pkg.show.name,
+    exportedAt: new Date().toISOString(),
+    contents: {
+      plate: "empty - no live-action plate ingested for this shot",
+      gen: pkg.approvedVersion?.hasVideoBytes
+        ? [`${shotCode}_gen_v${String(pkg.approvedVersion.versionNumber).padStart(3, "0")}.mov`]
+        : [],
+      refs: pkg.referenceAssets.filter((r) => r.hasImageBytes).map((r) => r.imageUrl.split("/").pop()),
+      metadata: ["manifest.json", "generation.json", "provenance.json", "qc.json", "notes.json"],
+      nukeScript: `${shotCode}_comp.nk`,
+    },
+  };
+
+  const generation = pkg.approvedVersion
+    ? {
+        version: pkg.approvedVersion.versionNumber,
+        prompt: pkg.approvedVersion.generationPrompt,
+        settings: pkg.approvedVersion.generationSettings,
+        hasStoredVideo: pkg.approvedVersion.hasVideoBytes,
+        generatedAt: pkg.approvedVersion.createdAt,
+      }
+    : { note: "No approved version for this shot yet." };
+
+  const provenance = {
+    runId: pkg.provenance.runId,
+    note: pkg.provenance.runId
+      ? "Full agent_decision_log trail for the run that approved this version."
+      : "No approval_gate run found for this version - provenance unavailable.",
+    steps: pkg.provenance.events.map((e) => ({
+      agent: e.agentName,
+      step: e.step,
+      model: e.model,
+      tokensIn: e.tokensIn,
+      tokensOut: e.tokensOut,
+      costUsd: e.costUsd,
+      latencyMs: e.latencyMs,
+      createdAt: e.createdAt,
+    })),
+  };
+
+  const qc = {
+    findings: pkg.qcFindings,
+    note:
+      pkg.qcFindings.length === 0
+        ? "No structured per-finding QC data stored for this version - see notes.json for the critic's prose findings instead."
+        : undefined,
+  };
+
+  const notes = {
+    approvalEvents: pkg.approvalEvents,
+  };
+
+  metadata.file("manifest.json", JSON.stringify(manifest, null, 2));
+  metadata.file("generation.json", JSON.stringify(generation, null, 2));
+  metadata.file("provenance.json", JSON.stringify(provenance, null, 2));
+  metadata.file("qc.json", JSON.stringify(qc, null, 2));
+  metadata.file("notes.json", JSON.stringify(notes, null, 2));
+
+  root.file(`${shotCode}_comp.nk`, generateNukeScript(pkg));
+
+  const bytes = await zip.generateAsync({ type: "uint8array" });
+  // Response's BodyInit type wants a plain ArrayBuffer, not the
+  // ArrayBufferLike | SharedArrayBuffer union JSZip's Uint8Array carries -
+  // copy into a fresh one rather than fighting the type with a cast.
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+
+  return new Response(arrayBuffer, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${shotCode}_export.zip"`,
+    },
+  });
+}

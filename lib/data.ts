@@ -181,6 +181,31 @@ export async function getSessionEvents(runId: string, sinceIso?: string) {
   return rows.map(toDecisionLogEvent);
 }
 
+// Real provenance for one shot version: which agent run actually approved
+// (or rejected) it. approval_gate logs its input_ref as "shot:{code}:v{n}"
+// (server/agents/approval.py) - the one unambiguous anchor back to a
+// specific version, since generation_adapter's own ref is just the shot
+// code (no version exists yet at generation time). From that run_id, every
+// other real step in the same run (plan, generate, critique, revise) comes
+// along for free via getSessionEvents.
+export async function getVersionProvenance(shotCode: string, versionNumber: number) {
+  const client = getClickHouseClient();
+  const result = await client.query({
+    query: `
+      SELECT run_id FROM dailies.agent_decision_log
+      WHERE agent_name = 'approval_gate' AND input_ref = {ref:String}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    query_params: { ref: `shot:${shotCode}:v${versionNumber}` },
+    format: "JSONEachRow",
+  });
+  const rows = await result.json<{ run_id: string }>();
+  const runId = rows[0]?.run_id ?? null;
+  const events = runId ? await getSessionEvents(runId) : [];
+  return { runId, events };
+}
+
 // Approved shots played back to back, in shot order. A shot's *approved*
 // version isn't necessarily its latest one - SH020 is the real example:
 // shots.status flipped to approved via a re-critique of v5, while v6 (the

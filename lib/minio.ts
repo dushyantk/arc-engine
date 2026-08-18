@@ -17,3 +17,12 @@ export function getMinioClient() {
 }
 
 export const MINIO_BUCKET = process.env.MINIO_BUCKET ?? "dailies";
+
+export async function getObjectBytes(key: string): Promise<Buffer> {
+  const stream = await getMinioClient().getObject(MINIO_BUCKET, key);
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
