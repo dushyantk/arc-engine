@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getShotDetail } from "@/lib/data";
 import { ShotStatusBadge, VersionStatusBadge } from "@/components/status-badge";
 import { ShotVideo } from "@/components/shot-video";
+import { QcReport } from "@/components/qc-report";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,12 @@ export default async function ShotDetailPage({
             <p className="mt-4 text-sm text-muted-foreground">
               {version.generationPrompt}
             </p>
+
+            {version.qcFindings.length > 0 ? (
+              <div className="mt-4">
+                <QcReport findings={version.qcFindings} />
+              </div>
+            ) : null}
 
             {version.events.length > 0 ? (
               <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
