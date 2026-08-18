@@ -323,6 +323,19 @@ demo board; reference upload and budget polish are fast-follows.
       export page (bundle every approved shot) or link the rail to the per-shot export pages.
 - [ ] **Sessions list can't distinguish a live run from a finished one** (no running-now
       indicator) and offers no way to start one (depends on the FastAPI run-trigger task above).
+- [ ] **Landing page reads as an internal page, not a polished landing.** Root cause is honest:
+      it applies the app's tokens wholesale (same card/border/background treatment as the
+      dashboard) and copies the design-directions artifact's pixel values literally — but that
+      artifact was a direction *sketch* rendered as a miniature panel mock, an identity spec
+      (palette, mono type, tone), not a 1:1 landing layout. The result: app-scale hero type
+      (clamp 26–36px where a landing earns 48px+), uniform `py-16` section rhythm with one
+      container width throughout (reads as stacked admin panels), zero motion, and the real
+      generated footage — the single strongest asset this product has — presented at the same
+      visual weight as body copy. Polish task, staying inside the locked Lab Bench identity (no
+      generic-SaaS drift, no new colors): landing-grade display scale and type contrast, varied
+      section rhythm and width (full-bleed moments for the real footage), restrained motion
+      (scroll reveals, hover states on the evidence cards), a footer with actual depth, and the
+      hero treated cinematically rather than as a card in a grid.
 - [ ] **Build-process ledger page** (standing request, 2026-08-17): surface the
       `generations/LEDGER.md` narrative, the preserved generations/frames, and per-step costs as
       a page on the portal — the "how this was actually built" exhibit. Media is gitignored by
