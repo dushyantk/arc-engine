@@ -38,6 +38,15 @@ export const referenceAssetType = pgEnum("reference_asset_type", [
 
 export const approvalActor = pgEnum("approval_actor", ["agent", "human"]);
 
+// A sequence is approved only when every shot in it is approved AND a final
+// cross-shot continuity pass agrees they belong together (ARCHITECTURE.md
+// section 1) - this is that verdict, not just a rollup of shot statuses.
+export const sequenceStatus = pgEnum("sequence_status", [
+  "pending",
+  "approved",
+  "needs_human",
+]);
+
 export const shows = pgTable("shows", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -51,6 +60,11 @@ export const sequences = pgTable("sequences", {
     .references(() => shows.id, { onDelete: "cascade" }),
   code: text("code").notNull(),
   description: text("description"),
+  status: sequenceStatus("status").notNull().default("pending"),
+  // The continuity agent's own written verdict - which axes it checked
+  // across the approved shots and what it found, not just pass/fail.
+  continuityNotes: text("continuity_notes"),
+  continuityCheckedAt: timestamp("continuity_checked_at", { withTimezone: true }),
 });
 
 export const shots = pgTable("shots", {

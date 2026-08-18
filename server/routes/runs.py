@@ -17,12 +17,18 @@ after). /recritique never touches Veo, so it has no such gate.
 """
 
 import asyncio
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from agents.decision_log import get_veo_pricing, new_run_id
-from agents.production_memory import extract_and_store_fingerprint, get_qc_findings
+from agents.production_memory import (
+    extract_and_store_fingerprint,
+    get_latest_fingerprint,
+    get_qc_findings,
+)
+from agents.sequence_continuity import evaluate_sequence_continuity
 from db.postgres import Database
 from models.contracts import GenerationSettings
 from run_session import recritique as run_recritique
@@ -223,3 +229,69 @@ async def extract_fingerprint(req: ExtractFingerprintRequest) -> RunStartedRespo
         run_id=run_id,
         detail=f"Continuity fingerprint extracted for {req.shot_code} v{req.version_number}.",
     )
+
+
+class SequenceContinuityRequest(BaseModel):
+    sequence_id: UUID
+
+
+class SequenceContinuityResponse(BaseModel):
+    run_id: str
+    status: str
+    notes: str
+
+
+@router.post("/sequence-continuity", response_model=SequenceContinuityResponse)
+async def start_sequence_continuity(req: SequenceContinuityRequest) -> SequenceContinuityResponse:
+    """ARCHITECTURE.md's closing argument: a sequence is approved only when
+    every shot is approved AND a final cross-shot continuity pass agrees
+    they belong together. Not single-flighted, same reasoning as
+    extract-fingerprint: a fast text call, not a real generation."""
+    db = Database()
+    await db.connect()
+    try:
+        sequence = await db.get_sequence(req.sequence_id)
+        show = await db.get_show(sequence.show_id)
+        shots = await db.get_shots_for_sequence(req.sequence_id)
+
+        if not shots:
+            raise HTTPException(status_code=400, detail="Sequence has no shots.")
+        not_approved = [s.code for s in shots if s.status != "approved"]
+        if not_approved:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not every shot is approved yet: {', '.join(not_approved)}.",
+            )
+
+        fingerprints = []
+        for shot in shots:
+            versions = await db.get_shot_versions(shot.id)
+            approved_versions = [v for v in versions if v.status == "approved"]
+            if not approved_versions:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{shot.code} is approved but has no approved version on record.",
+                )
+            latest = max(approved_versions, key=lambda v: v.version_number)
+            fingerprint = get_latest_fingerprint(shot_code=shot.code, version=latest.version_number)
+            if fingerprint is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"{shot.code} v{latest.version_number} has no continuity fingerprint - "
+                        "re-approve it to backfill one, then retry the continuity pass."
+                    ),
+                )
+            fingerprints.append(fingerprint)
+
+        run_id = new_run_id()
+        status, notes = await evaluate_sequence_continuity(
+            fingerprints=fingerprints,
+            run_id=run_id,
+            sequence_ref=f"{show.name}/{sequence.code}",
+        )
+        await db.update_sequence_continuity(req.sequence_id, status=status, notes=notes)
+    finally:
+        await db.close()
+
+    return SequenceContinuityResponse(run_id=run_id, status=status, notes=notes)

@@ -4,6 +4,7 @@ import { ArrowLeft, Film, Plus } from "lucide-react";
 import { getSequenceDetail } from "@/lib/data";
 import { createShot } from "@/lib/actions";
 import { ShotStatusBadge } from "@/components/status-badge";
+import { SequenceContinuityPanel } from "@/components/sequence-continuity-panel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -142,6 +143,14 @@ export default async function SequenceDetailPage({
           </Dialog>
         </div>
       </div>
+
+      <SequenceContinuityPanel
+        sequenceId={sequence.id}
+        status={sequence.status}
+        notes={sequence.continuityNotes}
+        checkedAt={sequence.continuityCheckedAt?.toISOString() ?? null}
+        allShotsApproved={shots.length > 0 && approvedCount === shots.length}
+      />
 
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {shots.map((shot) => {

@@ -16,6 +16,12 @@ const VERSION_STATUS_CONFIG = {
   approved: { variant: "success", label: "Approved", Icon: Check },
 } as const;
 
+const SEQUENCE_STATUS_CONFIG = {
+  pending: { variant: "outline", label: "Pending", Icon: CircleDashed },
+  needs_human: { variant: "info", label: "Needs human", Icon: UserCheck },
+  approved: { variant: "success", label: "Continuity approved", Icon: Check },
+} as const;
+
 export function ShotStatusBadge({
   status,
 }: {
@@ -36,6 +42,20 @@ export function VersionStatusBadge({
   status: keyof typeof VERSION_STATUS_CONFIG;
 }) {
   const { variant, label, Icon } = VERSION_STATUS_CONFIG[status];
+  return (
+    <Badge variant={variant}>
+      <Icon className="size-3" />
+      {label}
+    </Badge>
+  );
+}
+
+export function SequenceStatusBadge({
+  status,
+}: {
+  status: keyof typeof SEQUENCE_STATUS_CONFIG;
+}) {
+  const { variant, label, Icon } = SEQUENCE_STATUS_CONFIG[status];
   return (
     <Badge variant={variant}>
       <Icon className="size-3" />

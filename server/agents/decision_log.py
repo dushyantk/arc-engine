@@ -14,7 +14,7 @@ from uuid import uuid4
 
 import clickhouse_connect
 
-AgentName = str  # "planner" | "generation_adapter" | "critic" | "revision_agent" | "approval_gate"
+AgentName = str  # "planner" | "generation_adapter" | "critic" | "revision_agent" | "approval_gate" | "continuity_agent"
 
 # USD per 1M tokens: (input, output). Approximate, standard (non-batch) tier.
 _TOKEN_PRICING: dict[str, tuple[float, float]] = {

@@ -73,8 +73,12 @@ class Database:
         disambiguate, or this errors if the code matches more than one
         show. (Previously this always searched a single hardcoded show,
         which broke for real the moment a second show existed.)"""
+        # sh.sequence_id (from sh.*) already equals sq.id via the join - no
+        # need to re-select it under another name.
         base_query = """
             SELECT sh.*, sq.code AS sequence_code, sq.description AS sequence_description,
+                   sq.status AS sequence_status, sq.continuity_notes AS sequence_continuity_notes,
+                   sq.continuity_checked_at AS sequence_continuity_checked_at,
                    s.id AS show_id, s.name AS show_name, s.created_at AS show_created_at
             FROM shots sh
             JOIN sequences sq ON sq.id = sh.sequence_id
@@ -104,12 +108,29 @@ class Database:
             show_id=row["show_id"],
             code=row["sequence_code"],
             description=row["sequence_description"],
+            status=row["sequence_status"],
+            continuity_notes=row["sequence_continuity_notes"],
+            continuity_checked_at=row["sequence_continuity_checked_at"],
         )
         return shot, show, sequence
 
     async def update_shot_brief(self, shot_id: UUID, brief: str) -> None:
         await self.pool.execute(
             "UPDATE shots SET brief = $2 WHERE id = $1", shot_id, brief
+        )
+
+    async def update_sequence_continuity(
+        self, sequence_id: UUID, *, status: str, notes: str
+    ) -> None:
+        await self.pool.execute(
+            """
+            UPDATE sequences
+            SET status = $2, continuity_notes = $3, continuity_checked_at = now()
+            WHERE id = $1
+            """,
+            sequence_id,
+            status,
+            notes,
         )
 
     async def get_reference_assets(self, show_id: UUID) -> list[ReferenceAsset]:

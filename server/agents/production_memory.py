@@ -78,6 +78,76 @@ def get_qc_findings(*, shot_id: str, version: int) -> list[QCFinding]:
     ]
 
 
+def get_latest_fingerprint(*, shot_code: str, version: int) -> ContinuityFingerprint | None:
+    """Reads back the real continuity_fingerprints row for one approved
+    shot version - what the sequence-level continuity pass compares across
+    shots. None if this version predates the fingerprint-extraction feature
+    or was never approved."""
+    client = _client()
+    result = client.query(
+        "SELECT show, sequence, shot, version, character_identity, costume, props, "
+        "environment, time_of_day, lighting_direction, camera, lens_language, "
+        "screen_direction, palette, approved_reference_frames, generation_prompt, "
+        "generation_settings, qc_findings, supervisor_notes, revision_reason, "
+        "approval_status, extracted_at "
+        "FROM continuity_fingerprints "
+        "WHERE shot = {shot:String} AND version = {version:UInt32} AND approval_status = 'approved' "
+        "ORDER BY extracted_at DESC LIMIT 1",
+        parameters={"shot": shot_code, "version": version},
+    )
+    if not result.result_rows:
+        return None
+    row = result.result_rows
+    (
+        show,
+        sequence,
+        shot,
+        ver,
+        character_identity,
+        costume,
+        props,
+        environment,
+        time_of_day,
+        lighting_direction,
+        camera,
+        lens_language,
+        screen_direction,
+        palette,
+        approved_reference_frames,
+        generation_prompt,
+        generation_settings,
+        qc_findings_json,
+        supervisor_notes,
+        revision_reason,
+        approval_status,
+        extracted_at,
+    ) = row[0]
+    return ContinuityFingerprint(
+        show=show,
+        sequence=sequence,
+        shot=shot,
+        version=ver,
+        character_identity=character_identity,
+        costume=costume,
+        props=props,
+        environment=environment,
+        time_of_day=time_of_day,
+        lighting_direction=lighting_direction,
+        camera=camera,
+        lens_language=lens_language,
+        screen_direction=screen_direction,
+        palette=palette,
+        approved_reference_frames=approved_reference_frames,
+        generation_prompt=generation_prompt,
+        generation_settings=GenerationSettings.model_validate_json(generation_settings),
+        qc_findings=[QCFinding.model_validate(f) for f in json.loads(qc_findings_json)],
+        supervisor_notes=supervisor_notes,
+        revision_reason=revision_reason or None,
+        approval_status=approval_status,
+        extracted_at=extracted_at,
+    )
+
+
 def store_qc_findings(*, shot_id: str, version: int, findings: list[QCFinding]) -> None:
     """Every real critique's findings, granular - one row per finding, same
     shape the seed data already has, so the QC report UI (built against

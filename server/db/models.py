@@ -13,6 +13,7 @@ from models.contracts import ShotStatus
 ShotVersionStatus = Literal["candidate", "failed", "approved"]
 ReferenceAssetType = Literal["character", "prop", "environment", "palette"]
 ApprovalActor = Literal["agent", "human"]
+SequenceStatus = Literal["pending", "approved", "needs_human"]
 
 
 class Show(BaseModel):
@@ -26,6 +27,9 @@ class Sequence(BaseModel):
     show_id: UUID
     code: str
     description: str | None
+    status: SequenceStatus
+    continuity_notes: str | None
+    continuity_checked_at: datetime | None
 
 
 class Shot(BaseModel):
