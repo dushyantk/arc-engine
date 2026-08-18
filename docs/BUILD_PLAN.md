@@ -141,8 +141,13 @@ recanonizing Maya's facial mark — three real generations across two shots prov
 canon was unproducible against the real reference photo, so production memory was corrected to
 match what actually renders. SH010 sits at `needs_human` after 3 real attempts (recurring hero-prop
 screen-side defect, never independently root-caused) — left as real, honest state, not forced
-through. Current sequence state: **2 of 3 shots approved with real footage** (SH020 v5, SH030 v5).
-Cumulative real spend: **$29.63, 91 agent calls, 9 real Veo generations.**
+through. Current sequence state (as of writing): **1 of 3 shots approved with real footage**
+(SH030 v5) — SH020 flipped from `approved` back to `needs_human` on 2026-08-18 as a real side
+effect of verifying the run-control feature below (a real recritique came back with a different
+verdict than its last real pass; left as real state, not re-rolled to force a nicer number). This
+number will keep moving as real runs happen — read it from the dashboard, not this doc, for
+current truth. Cumulative real spend: **$29.71+, 97+ agent calls, 9 real Veo generations** (as of
+the run-control verification pass; recritique calls have no Veo cost but do add to the call count).
 
 ## Phase 3 — Dashboard (Next.js)
 
@@ -242,11 +247,22 @@ In hierarchy order:
       through the dashboard, confirmed via a zero-cost Python check that the ambiguous lookup
       correctly errors and `--show` correctly resolves it, reading back the exact saved text. See
       `generations/LEDGER.md` Audit §27.
-- [ ] **Run control.** Start a run from the shot view — model tier choice, explicit cost
-      consent, and a per-run budget cap — plus cancel-in-flight, and the CLI's other two real
-      modes (`--recritique-version`, `--reuse-prompt-from-version`) as operator actions. Backed
-      by FastAPI endpoints with a single-flight lock (one real-money run at a time). The live
-      session view already exists as the monitoring half; this is the missing initiating half.
+- [x] **Run control (core).** Start a run from the shot view — real model tier choice (the
+      operator's pick deterministically overrides the planner's, since it's LLM-picked output, not
+      otherwise steerable), real live pricing, explicit cost consent required both server-side
+      (`confirm_cost`) and client-side (a checkbox gating the button) — plus the CLI's other two
+      real modes (`--recritique-version`, `--reuse-prompt-from-version`) as real UI actions.
+      `server/routes/runs.py` (FastAPI's first routes beyond `/health`), single-flight lock (one
+      real-money run at a time). Starting a run redirects straight into the existing live session
+      view via a pre-generated `run_id`. Verified end to end for real, including the actual
+      zero-cost Recritique button proving the full loop (UI → proxy → FastAPI → background
+      execution → real SSE events landing live). See `generations/LEDGER.md` Audit §28.
+  - [ ] **Not built: cancel-in-flight.** Deliberately deferred rather than shipped half-safe —
+        canceling the polling loop client-side doesn't necessarily stop real billing if Veo's
+        operation is already in flight server-side at Google, and a cancel button that doesn't
+        actually stop real money would be worse than no button. Needs its own design pass on what
+        "cancel" honestly means once money may already be spent.
+  - [ ] **Not built: per-run budget cap.** No enforcement yet of a spending ceiling across runs.
 - [ ] **Approval control.** Human approve/reject/veto at version level with a required reason,
       writing `approval_events` with `actor='human'` and moving shot status. Not just as the
       `needs_human` resolution path — the critic non-determinism documented in the ledger (§17)
