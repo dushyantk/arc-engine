@@ -61,3 +61,51 @@ async def extract_frames(video_bytes: bytes, count: int = 12) -> list[tuple[floa
             frames.append((timestamp, frame_path.read_bytes()))
 
         return frames
+
+
+async def extract_poster_frame(video_bytes: bytes, at_fraction: float = 0.5) -> bytes:
+    """Returns one JPEG still from `at_fraction` through the clip, for use as a
+    shot card's poster.
+
+    Deliberately not the first frame: Veo clips routinely open on a fade or a
+    near-black frame, which reads as broken footage in a grid. Midpoint is the
+    frame most likely to actually show the shot. JPEG rather than the PNG
+    extract_frames() produces - these are photographic stills served in a grid,
+    where PNG costs several times the bytes for no visible gain.
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+        video_path = tmp / "clip.mp4"
+        video_path.write_bytes(video_bytes)
+
+        probe = await asyncio.create_subprocess_exec(
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "csv=p=0",
+            str(video_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await probe.communicate()
+        if probe.returncode != 0:
+            raise RuntimeError(f"ffprobe failed: {stderr.decode()}")
+        duration = float(stdout.decode().strip())
+
+        poster_path = tmp / "poster.jpg"
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            "-y",
+            "-ss", f"{duration * at_fraction:.3f}",
+            "-i", str(video_path),
+            "-frames:v", "1",
+            "-q:v", "4",
+            str(poster_path),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, ffmpeg_stderr = await proc.communicate()
+        if proc.returncode != 0 or not poster_path.exists():
+            raise RuntimeError(f"ffmpeg poster extraction failed: {ffmpeg_stderr.decode()}")
+
+        return poster_path.read_bytes()

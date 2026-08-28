@@ -23,7 +23,9 @@ export async function GET(
     ? "video/mp4"
     : key.endsWith(".png")
       ? "image/png"
-      : "application/octet-stream";
+      : key.endsWith(".jpg") || key.endsWith(".jpeg")
+        ? "image/jpeg"
+        : "application/octet-stream";
 
   const range = request.headers.get("range");
   if (range) {

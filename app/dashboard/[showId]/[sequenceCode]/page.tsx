@@ -1,7 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Film, Plus } from "lucide-react";
-import { getSequenceDetail } from "@/lib/data";
+import { getSequenceDetail, pickShotPoster } from "@/lib/data";
 import { createShot } from "@/lib/actions";
 import { ShotStatusBadge } from "@/components/status-badge";
 import { SequenceContinuityPanel } from "@/components/sequence-continuity-panel";
@@ -154,8 +155,7 @@ export default async function SequenceDetailPage({
 
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {shots.map((shot) => {
-          const posterVersion = shot.latestVersion;
-          const hasRealVideo = Boolean(posterVersion?.videoAssetUrl);
+          const poster = pickShotPoster(shot, shot.versions);
           return (
             <Link
               key={shot.id}
@@ -163,12 +163,14 @@ export default async function SequenceDetailPage({
               className="group overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-ring"
             >
               <div className="relative aspect-video overflow-hidden bg-secondary">
-                {hasRealVideo ? (
-                  <video
-                    src={`/api/media/${posterVersion!.videoAssetUrl}`}
-                    preload="metadata"
-                    muted
-                    className="h-full w-full object-cover"
+                {poster ? (
+                  <Image
+                    src={`/api/media/${poster.key}`}
+                    alt={`Frame from ${shot.code} v${poster.versionNumber}`}
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover"
+                    unoptimized
                   />
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -180,7 +182,18 @@ export default async function SequenceDetailPage({
                 )}
                 <span className="absolute bottom-2 left-2 rounded-sm bg-background/80 px-1.5 py-0.5 font-mono text-[11px] text-foreground">
                   {shot.code}
+                  {poster ? (
+                    <span className="text-muted-foreground"> v{poster.versionNumber}</span>
+                  ) : null}
                 </span>
+                {poster && !poster.representsShotStatus ? (
+                  <span
+                    className="absolute top-2 right-2 rounded-sm bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-warning"
+                    title={`This shot reads ${shot.status}, but that version has no stored footage. Showing v${poster.versionNumber} instead.`}
+                  >
+                    STAND-IN
+                  </span>
+                ) : null}
               </div>
               <div className="flex items-center justify-between p-4">
                 <div>

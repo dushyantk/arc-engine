@@ -402,6 +402,64 @@ export async function getShotDetail(
 }
 
 // ---------------------------------------------------------------------------
+// Shot posters.
+//
+// RULE: any surface showing a still for a shot resolves it through
+// pickShotPoster(). Do not reach for `latestVersion.posterAssetUrl` inline. The
+// sequence grid did exactly that and every card ended up posterised from a
+// failed take, because a shot's latest version is routinely not the version its
+// status is about - the same "latest is not approved" trap already fixed in
+// playback and export (05c90c4).
+
+export type ShotPoster = {
+  /** MinIO key, served through /api/media. */
+  key: string;
+  /** The version the still actually came from, which the caller must label. */
+  versionNumber: number;
+  /** False when the still is a stand-in because the version the status
+   *  describes has no footage behind it - real state for SH010 v1 and
+   *  SH030 v3, both "approved" rows pointing at bytes that were never
+   *  uploaded. The card has to say so rather than imply this is the take. */
+  representsShotStatus: boolean;
+};
+
+type PosterCandidate = {
+  versionNumber: number;
+  status: string;
+  posterAssetUrl: string | null;
+};
+
+export function pickShotPoster(
+  shot: { status: string },
+  versions: PosterCandidate[],
+): ShotPoster | null {
+  const withPoster = [...versions]
+    .filter((v) => Boolean(v.posterAssetUrl))
+    .sort((a, b) => b.versionNumber - a.versionNumber);
+  if (withPoster.length === 0) return null;
+
+  // The version this card's status is about: the approved one when the shot is
+  // approved, otherwise the most recent attempt (what an operator reviews next).
+  const wanted =
+    shot.status === "approved"
+      ? [...versions]
+          .filter((v) => v.status === "approved")
+          .sort((a, b) => b.versionNumber - a.versionNumber)[0]
+      : [...versions].sort((a, b) => b.versionNumber - a.versionNumber)[0];
+
+  const exact = wanted
+    ? withPoster.find((v) => v.versionNumber === wanted.versionNumber)
+    : undefined;
+  const chosen = exact ?? withPoster[0];
+
+  return {
+    key: chosen.posterAssetUrl!,
+    versionNumber: chosen.versionNumber,
+    representsShotStatus: Boolean(exact),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Landing page. Every number on the marketing surface is read from the same
 // agent_decision_log the dashboard uses, so it cannot drift the way the
 // previous hardcoded STATS array did (it still claimed $13.23 / 55 calls long

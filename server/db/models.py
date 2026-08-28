@@ -49,6 +49,7 @@ class ShotVersion(BaseModel):
     generation_prompt: str
     generation_settings: dict[str, object] | None
     video_asset_url: str | None
+    poster_asset_url: str | None
     status: ShotVersionStatus
     brief_used: str | None
     created_at: datetime

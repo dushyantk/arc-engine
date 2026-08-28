@@ -91,6 +91,13 @@ export const shotVersions = pgTable("shot_versions", {
   generationPrompt: text("generation_prompt").notNull(),
   generationSettings: jsonb("generation_settings"),
   videoAssetUrl: text("video_asset_url"),
+  // A real still pulled out of this version's own footage, so a shot card can
+  // show what the take looks like without the browser downloading the video to
+  // render a thumbnail. Stored rather than derived from videoAssetUrl by
+  // convention: a version can have footage and no poster (anything generated
+  // before posters existed, until the backfill runs), and that difference has
+  // to be legible instead of a 404 behind a guessed key.
+  posterAssetUrl: text("poster_asset_url"),
   status: shotVersionStatus("status").notNull().default("candidate"),
   // A stamp of shots.brief at the moment this version was generated - the
   // brief can be edited later, so this is what actually drove this

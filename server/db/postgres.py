@@ -187,12 +187,14 @@ class Database:
         video_asset_url: str | None,
         status: str,
         brief_used: str | None = None,
+        poster_asset_url: str | None = None,
     ) -> ShotVersion:
         row = await self.pool.fetchrow(
             """
             INSERT INTO shot_versions
-                (shot_id, version_number, generation_prompt, generation_settings, video_asset_url, status, brief_used)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+                (shot_id, version_number, generation_prompt, generation_settings, video_asset_url,
+                 status, brief_used, poster_asset_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
             """,
             shot_id,
@@ -202,9 +204,17 @@ class Database:
             video_asset_url,
             status,
             brief_used,
+            poster_asset_url,
         )
         assert row is not None
         return ShotVersion(**dict(row))
+
+    async def set_shot_version_poster(self, shot_version_id: UUID, poster_asset_url: str) -> None:
+        await self.pool.execute(
+            "UPDATE shot_versions SET poster_asset_url = $2 WHERE id = $1",
+            shot_version_id,
+            poster_asset_url,
+        )
 
     async def update_shot_version_status(self, shot_version_id: UUID, status: str) -> None:
         await self.pool.execute(

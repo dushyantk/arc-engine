@@ -62,6 +62,7 @@ from db.models import ReferenceAsset, Shot
 from db.postgres import Database
 from models.contracts import GenerationSettings, QCFinding, ShotBrief, ShotStatus
 from storage.minio_client import get_bytes, get_client, put_bytes
+from video_frames import extract_poster_frame
 
 
 async def _load_show_shot(
@@ -162,6 +163,19 @@ async def _generate_store_and_critique(
     put_bytes(minio_client, bucket, video_key, video_bytes, content_type="video/mp4")
     print(f"stored at {bucket}/{video_key}")
 
+    # The video is already paid for and stored by this point, so a poster
+    # failure must not lose it - the shot card falls back to "no still" and the
+    # backfill can pick it up later.
+    poster_key: str | None = None
+    try:
+        poster_bytes = await extract_poster_frame(video_bytes)
+        key = f"gen/{shot_code}/v{next_version:03d}.jpg"
+        put_bytes(minio_client, bucket, key, poster_bytes, content_type="image/jpeg")
+        poster_key = key
+        print(f"poster stored at {bucket}/{key}")
+    except (RuntimeError, OSError, S3Error) as exc:
+        print(f"warning: poster extraction failed ({exc}); version stored without one")
+
     shot_version = await db.insert_shot_version(
         shot_id=shot.id,
         version_number=next_version,
@@ -170,6 +184,7 @@ async def _generate_store_and_critique(
         video_asset_url=video_key,
         status="candidate",
         brief_used=brief_used,
+        poster_asset_url=poster_key,
     )
 
     print("critiquing...")
