@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   approvalEvents,
@@ -399,6 +399,158 @@ export async function getShotDetail(
     show,
     versions: versionsWithFindings,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Landing page. Every number on the marketing surface is read from the same
+// agent_decision_log the dashboard uses, so it cannot drift the way the
+// previous hardcoded STATS array did (it still claimed $13.23 / 55 calls long
+// after real spend had passed $29). Nothing here is rounded up or restated
+// from a doc - if a figure is on the landing page, this query produced it.
+
+// The one aggregate that is a genuine product argument rather than a vanity
+// metric: generation is almost the entire bill, and everything that plans,
+// watches, critiques, revises and approves is a rounding error next to it.
+const SUPERVISION_AGENTS = [
+  "planner",
+  "critic",
+  "revision_agent",
+  "approval_gate",
+] as const;
+
+export type LandingStats = {
+  totalCalls: number;
+  totalSpendUsd: number;
+  veoGenerations: number;
+  runCount: number;
+  generationSpendUsd: number;
+  supervisionSpendUsd: number;
+  supervisionSharePct: number;
+  byAgent: { agentName: string; calls: number; spendUsd: number }[];
+};
+
+export async function getLandingStats(): Promise<LandingStats> {
+  const client = getClickHouseClient();
+  const [totalsResult, byAgentResult] = await Promise.all([
+    client.query({
+      query: `
+        SELECT count() AS calls,
+               sum(cost_usd) AS spend,
+               uniqExact(run_id) AS runs,
+               countIf(agent_name = 'generation_adapter') AS generations
+        FROM dailies.agent_decision_log
+      `,
+      format: "JSONEachRow",
+    }),
+    client.query({
+      query: `
+        SELECT agent_name, count() AS calls, sum(cost_usd) AS spend
+        FROM dailies.agent_decision_log
+        GROUP BY agent_name
+        ORDER BY spend DESC
+      `,
+      format: "JSONEachRow",
+    }),
+  ]);
+
+  const [totals] = await totalsResult.json<{
+    calls: string;
+    spend: string;
+    runs: string;
+    generations: string;
+  }>();
+  const byAgentRows = await byAgentResult.json<{
+    agent_name: string;
+    calls: string;
+    spend: string;
+  }>();
+
+  const byAgent = byAgentRows.map((row) => ({
+    agentName: row.agent_name,
+    calls: Number(row.calls),
+    spendUsd: Number(row.spend),
+  }));
+
+  const totalSpendUsd = Number(totals?.spend ?? 0);
+  const generationSpendUsd = byAgent
+    .filter((row) => row.agentName === "generation_adapter")
+    .reduce((sum, row) => sum + row.spendUsd, 0);
+  const supervisionSpendUsd = byAgent
+    .filter((row) =>
+      (SUPERVISION_AGENTS as readonly string[]).includes(row.agentName),
+    )
+    .reduce((sum, row) => sum + row.spendUsd, 0);
+
+  return {
+    totalCalls: Number(totals?.calls ?? 0),
+    totalSpendUsd,
+    veoGenerations: Number(totals?.generations ?? 0),
+    runCount: Number(totals?.runs ?? 0),
+    generationSpendUsd,
+    supervisionSpendUsd,
+    supervisionSharePct:
+      totalSpendUsd > 0 ? (supervisionSpendUsd / totalSpendUsd) * 100 : 0,
+    byAgent,
+  };
+}
+
+export type LandingFinding = QcFinding & {
+  shotCode: string;
+  version: number;
+};
+
+// The critic's own words, quoted on the landing page straight from the rows it
+// wrote. Deliberately not filtered down to failures: a shot carrying pass,
+// warning and fail together is the actual argument (a real review with nuance,
+// not a binary filter), so the page needs the passes as much as the fails.
+export async function getLandingFindings(): Promise<LandingFinding[]> {
+  const client = getClickHouseClient();
+  const result = await client.query({
+    query: `
+      SELECT shot_id, version, category, verdict,
+             frame_range_start, frame_range_end, description, severity
+      FROM dailies.qc_findings
+      ORDER BY shot_id ASC, version ASC, created_at ASC
+    `,
+    format: "JSONEachRow",
+  });
+  const rows = await result.json<{
+    shot_id: string;
+    version: number;
+    category: string;
+    verdict: "pass" | "fail" | "warning";
+    frame_range_start: number | null;
+    frame_range_end: number | null;
+    description: string;
+    severity: "info" | "warning" | "critical";
+  }>();
+  if (rows.length === 0) return [];
+
+  // shot_id is a Postgres uuid carried into ClickHouse; the readable code only
+  // exists relationally, so resolve it rather than printing a uuid at a buyer.
+  const shotIds = [...new Set(rows.map((row) => row.shot_id))];
+  const shotRows = await db
+    .select({ id: shots.id, code: shots.code })
+    .from(shots)
+    .where(inArray(shots.id, shotIds));
+  const codeById = new Map(shotRows.map((row) => [row.id, row.code]));
+
+  return rows.flatMap((row) => {
+    const shotCode = codeById.get(row.shot_id);
+    // A finding whose shot no longer exists has no honest label, so it is
+    // dropped rather than shown against a placeholder code.
+    if (!shotCode) return [];
+    return [{
+      shotCode,
+      version: row.version,
+      category: row.category,
+      verdict: row.verdict,
+      frameRangeStart: row.frame_range_start,
+      frameRangeEnd: row.frame_range_end,
+      description: row.description,
+      severity: row.severity,
+    }];
+  });
 }
 
 // Best-effort deep link for a shot code, for the one place outside the
