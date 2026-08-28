@@ -345,12 +345,15 @@ above, not forgotten).
       over real approved footage; SH010's says the same over 3 real generations. Store or extract
       a real poster frame per version (at generation time, or server-side from MinIO) and delete
       the hardcoded map and the placeholder copy.
-- [ ] **Landing-page stats are hardcoded and stale.** `app/page.tsx` STATS says
-      "$13.23 / 55 calls / 6 versions / 4 generations"; real totals as of this audit are
-      **$29.63 / 91 calls / 9 generations**. Source them from ClickHouse (the queries already
-      exist in `lib/data.ts`) or visibly date-stamp them. `DEFECT_CATEGORIES` also omits two
-      categories the real critic has actually emitted in production (`camera_setup`,
-      `lighting_continuity`).
+- [x] **Landing-page stats are hardcoded and stale.** Closed in df1fbe3 — `app/page.tsx` carries
+      neither a `STATS` array nor a `DEFECT_CATEGORIES` literal any more. `getLandingStats()` and
+      `getLandingFindings()` ([`lib/data.ts`](../lib/data.ts)) read `agent_decision_log` and
+      `qc_findings` at request time, and the page renders whatever categories the critic actually
+      emitted rather than a hand-maintained list, so that particular drift cannot recur. The
+      generation-vs-supervision split is computed, not asserted. One correction to the audit while
+      closing it: `lighting_continuity` was genuinely missing, but **`camera_setup` appears in zero
+      real rows** — checked across `qc_findings` and `continuity_fingerprints` — so there was
+      nothing to restore there.
 - [ ] **REFERENCES rail item is a dead label** even though real reference images now exist in
       MinIO with `lockedAt`/`approvedBy` set in Postgres. Build the references view (image, type,
       locked date, approver — the lineage the export's refs/ folder already draws from).
@@ -358,19 +361,21 @@ above, not forgotten).
       export page (bundle every approved shot) or link the rail to the per-shot export pages.
 - [ ] **Sessions list can't distinguish a live run from a finished one** (no running-now
       indicator) and offers no way to start one (depends on the FastAPI run-trigger task above).
-- [ ] **Landing page reads as an internal page, not a polished landing.** Root cause is honest:
-      it applies the app's tokens wholesale (same card/border/background treatment as the
-      dashboard) and copies the design-directions artifact's pixel values literally — but that
-      artifact was a direction *sketch* rendered as a miniature panel mock, an identity spec
-      (palette, mono type, tone), not a 1:1 landing layout. The result: app-scale hero type
-      (clamp 26–36px where a landing earns 48px+), uniform `py-16` section rhythm with one
-      container width throughout (reads as stacked admin panels), zero motion, and the real
-      generated footage — the single strongest asset this product has — presented at the same
-      visual weight as body copy. Polish task, staying inside the locked Lab Bench identity (no
-      generic-SaaS drift, no new colors): landing-grade display scale and type contrast, varied
-      section rhythm and width (full-bleed moments for the real footage), restrained motion
-      (scroll reveals, hover states on the evidence cards), a footer with actual depth, and the
-      hero treated cinematically rather than as a card in a grid.
+- [x] **Landing page reads as an internal page, not a polished landing.** Closed in df1fbe3 —
+      rebuilt as a full-bleed cold open on the real SH020 v006 frame sitting over the six-stage
+      supervision loop, with the footage and the critic's own findings hung at the stage each
+      belongs to. Every symptom the audit named is addressed: display-scale type in place of the
+      26–36px clamp, section rhythm and container width that vary by function rather than a uniform
+      `py-16` at one width, restrained scroll motion, a footer with real depth, and the generated
+      footage carrying the fold instead of sitting at body-copy weight. Stays inside the locked Lab
+      Bench identity — no colour outside the token set, and `app/landing.css` is scoped under
+      `.dailies-landing` so generic names (`.row`, `.btn`, `.wrap`) cannot reach the dashboard.
+      Chosen from four directions explored as full mockups, then ported and verified against the
+      approved one with a Playwright/Pillow screenshot diff (itself validated at 0 differing pixels
+      of 16,280,640): **zero horizontal and zero structural differences at 1440/768/390**, cold open
+      pixel-identical, and every remaining delta traceable to live data replacing static prose or to
+      two unsourced quotes deliberately dropped (see the note in that commit — they came from
+      `generations/LEDGER.md`, not from `qc_findings`).
 - [ ] **Build-process ledger page** (standing request, 2026-08-17): surface the
       `generations/LEDGER.md` narrative, the preserved generations/frames, and per-step costs as
       a page on the portal — the "how this was actually built" exhibit. Media is gitignored by
