@@ -340,11 +340,21 @@ above, not forgotten).
 
 ### Dashboard & frontend
 
-- [ ] **Sequence-view thumbnails are a hardcoded map that now lies.** `REAL_THUMBNAILS` in
-      `app/dashboard/page.tsx` knows only SH020. SH030's card says "Seed data, not yet generated"
-      over real approved footage; SH010's says the same over 3 real generations. Store or extract
-      a real poster frame per version (at generation time, or server-side from MinIO) and delete
-      the hardcoded map and the placeholder copy.
+- [x] **Sequence-view thumbnails are a hardcoded map that now lies.** Closed in 5d96eff, though
+      not as written: `REAL_THUMBNAILS` and the "Seed data, not yet generated" copy were already
+      gone, removed with the hierarchy refactor in 86ece1a. What replaced them had two defects of
+      its own. The card posterised whichever version was *latest*, which is routinely not the
+      version its status describes — the same "latest is not approved" trap fixed for playback and
+      export in 05c90c4 — so every card in SQ010 was showing a `failed` take. And it painted the
+      still by mounting a `<video preload="metadata">` per card, fetching container metadata out of
+      MinIO to render a thumbnail. Now `shot_versions.poster_asset_url` holds a real midpoint JPEG
+      written at generation time (`video_frames.extract_poster_frame`), resolved through the
+      mandated `pickShotPoster()` helper in [`lib/data.ts`](../lib/data.ts), with the version
+      labelled on the card. `server/backfill_posters.py` filled in the history: 9 real posters from
+      real footage, 6 versions skipped for having no bytes behind their key, 0 failures. Cards mark
+      a fallback **STAND-IN** where the version the status describes has no footage — real state
+      here, since SH010 v1 and SH030 v3 are both `approved` rows pointing at bytes never uploaded
+      (see the live-DB hygiene item below, which this makes visible rather than resolves).
 - [x] **Landing-page stats are hardcoded and stale.** Closed in df1fbe3 — `app/page.tsx` carries
       neither a `STATS` array nor a `DEFECT_CATEGORIES` literal any more. `getLandingStats()` and
       `getLandingFindings()` ([`lib/data.ts`](../lib/data.ts)) read `agent_decision_log` and
