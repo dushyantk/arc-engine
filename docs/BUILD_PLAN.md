@@ -279,9 +279,16 @@ In hierarchy order:
       end to end for real — submitted an actual rejection with real reasoning on SH020 v006,
       confirmed the real status change and the real `approval_events` row (correct actor,
       timestamp, and exact reason text) afterward. See `generations/LEDGER.md` Audit §29.
-- [ ] **Reference control.** Upload and lock/unlock references from the UI —
-      `ingest_reference_asset()` already exists server-side and has never been callable from the
-      product. Pairs with the references view task below.
+- [x] **Reference control.** Closed in d276b52. `uploadReferenceAsset` and `setReferenceLock`
+      ([`lib/actions.ts`](../lib/actions.ts)) with a real upload dialog on the show page. Locking
+      turned out to be load-bearing rather than cosmetic: `get_reference_assets()` selects
+      `WHERE locked_at IS NOT NULL`, so the planner and generation adapter only ever see locked
+      references and an unlocked one is invisible to the agent loop. Upload locks immediately,
+      matching `insert_reference_asset()` on the Python side so the two ingestion paths cannot
+      disagree; the key layout mirrors `_key()` except extension and content type come from the
+      uploaded file instead of being hardcoded to png. The view carries locked date and approver,
+      and an unlocked reference renders dimmed behind a **NOT IN CANON** badge stating it is not
+      used by any run — the consequence made visible rather than left as a silent no-op.
 - [ ] **Budget visibility at the point of consent.** Show cumulative and per-shot real spend
       (already in `agent_decision_log`) next to every start-run button, so cost consent is
       informed rather than a bare confirm dialog.
@@ -379,9 +386,11 @@ above, not forgotten).
       closing it: `lighting_continuity` was genuinely missing, but **`camera_setup` appears in zero
       real rows** — checked across `qc_findings` and `continuity_fingerprints` — so there was
       nothing to restore there.
-- [ ] **REFERENCES rail item is a dead label** even though real reference images now exist in
-      MinIO with `lockedAt`/`approvedBy` set in Postgres. Build the references view (image, type,
-      locked date, approver — the lineage the export's refs/ folder already draws from).
+- [x] **REFERENCES rail item is a dead label.** Closed in d276b52, and partly stale as written:
+      there is no REFERENCES rail item any more (it went with the hierarchy refactor in 86ece1a),
+      and references live on the show page where they are scoped to a show, which is the only place
+      they mean anything. The view now carries image, type, locked date and approver as asked, plus
+      the lock state and its consequence. The remaining dead rail label is EXPORT, below.
 - [ ] **EXPORT rail item is a dead label**; export exists per-shot only. Either a sequence-level
       export page (bundle every approved shot) or link the rail to the per-shot export pages.
 - [ ] **Sessions list can't distinguish a live run from a finished one** (no running-now
