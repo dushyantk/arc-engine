@@ -419,7 +419,15 @@ above, not forgotten).
 ## Phase 5 — Beta hardening
 
 - [ ] Smoke tests: Postgres + ClickHouse connectivity, one seeded shot through the full agent loop
-- [ ] Playwright e2e: sequence view → shot detail → approve → export, happy path
+- [x] Playwright e2e: sequence view → shot detail → approve → export, happy path —
+      [`playwright.config.ts`](../playwright.config.ts) (web server on **3211**, never 3210) and
+      [`e2e/`](../e2e): hierarchy navigation, create flow, approve → export, reference control.
+      Built to be incapable of touching real work: every fixture hangs off an `E2E %` show that is
+      torn down per test with a global-teardown safety net, the read-only spec aborts every non-GET
+      request at the browser, the three costed endpoints are aborted on every page, and the fixture
+      version stores no `generation_settings` so `/runs/extract-fingerprint` short-circuits before
+      Gemini whether or not the runtime is up. The export test unzips the downloaded package and
+      asserts the real tree and `manifest.json`, not that a button exists.
 - [ ] Cost/latency view sourced from `agent_decision_log` (dashboard, not just raw table)
 - [ ] `pnpm build` clean, FastAPI starts clean, docker-compose up clean from a fresh checkout
 - [ ] README with quickstart commands and the demo script (3-shot railway sequence, 7 generations

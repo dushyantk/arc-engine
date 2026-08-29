@@ -68,7 +68,7 @@ export default async function ShotDetailPage({
           >
             Export &rarr;
           </Link>
-          <ShotStatusBadge status={shot.status} />
+          <ShotStatusBadge status={shot.status} testId="shot-status" />
           <StartRunPanel
             shotCode={shot.code}
             showName={show?.name ?? ""}
@@ -104,8 +104,13 @@ export default async function ShotDetailPage({
 
       <div className="mt-8 flex flex-col gap-8">
         {versions.map((version) => (
+          // Same reasoning as the reference cards: every version card repeats
+          // the same "Human review" control, and a version card has no
+          // accessible name of its own to scope to.
           <div
             key={version.id}
+            data-testid="version-card"
+            data-version-number={version.versionNumber}
             className="rounded-lg border border-border bg-card p-5"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">

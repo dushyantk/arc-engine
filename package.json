@@ -9,6 +9,9 @@
     "dev": "concurrently -n web,api -c blue,magenta \"pnpm dev:web\" \"pnpm dev:api\"",
     "build": "next build",
     "start": "next start --port 3210",
+    "start:e2e": "next start --port 3211",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
@@ -33,6 +36,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@next/env": "^16.3.1",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

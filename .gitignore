@@ -20,6 +20,12 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# playwright — run artefacts, never project history
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # misc
 *.log
 .DS_Store

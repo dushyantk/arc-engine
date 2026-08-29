@@ -18,6 +18,18 @@ dependencies = [
 dev = [
     "ruff>=0.7",
     "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# The runtime's packages (agents/, db/, models/, storage/) sit at the server
+# root and are imported as top-level, the same way run_session.py does it.
+pythonpath = ["."]
+markers = [
+    "stack: needs the docker-compose stack up (Postgres, ClickHouse, MinIO)",
 ]
 
 [tool.ruff]

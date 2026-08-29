@@ -151,8 +151,14 @@ export default async function ShowDetailPage({
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {referenceAssets.map((ref) => (
+            // The test hooks are here because Lock/Unlock is a destructive verb
+            // repeated identically on every card, and the card itself carries no
+            // accessible name to scope a selector to. e2e/reference-control.spec.ts
+            // targets one card by name through these.
             <div
               key={ref.id}
+              data-testid="reference-card"
+              data-reference-name={ref.name}
               className={`overflow-hidden rounded-md border bg-card ${
                 ref.lockedAt ? "border-border" : "border-warning/40"
               }`}

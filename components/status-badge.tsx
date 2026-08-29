@@ -24,12 +24,17 @@ const SEQUENCE_STATUS_CONFIG = {
 
 export function ShotStatusBadge({
   status,
+  testId,
 }: {
   status: keyof typeof SHOT_STATUS_CONFIG;
+  /** Opt-in hook for the shot detail header, where the shot's own status badge
+   *  reads identically to the version badges further down the page. Passing it
+   *  changes no markup anywhere it isn't passed. */
+  testId?: string;
 }) {
   const { variant, label, Icon } = SHOT_STATUS_CONFIG[status];
   return (
-    <Badge variant={variant}>
+    <Badge variant={variant} data-testid={testId}>
       <Icon className="size-3" />
       {label}
     </Badge>
