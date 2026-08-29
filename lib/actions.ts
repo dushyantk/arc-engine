@@ -1,12 +1,13 @@
 "use server";
 
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { approvalEvents, sequences, shotVersions, shots, shows } from "@/db/schema";
 import { callRuntime } from "@/lib/runtime";
+import { resolveShotStatus } from "@/lib/data";
 
 // Creation is scoped to the parent context, strictly: a show is created
 // only from the shows-list root, a sequence only from inside a show page,
@@ -136,14 +137,27 @@ export async function submitHumanApproval(
   });
 
   const versionStatus = parsed.decision === "approved" ? "approved" : "failed";
-  // A human veto moves the shot to revise (try again with feedback), not
-  // needs_human - it was already reviewed by a human, that's the point.
-  const shotStatus = parsed.decision === "approved" ? "approved" : "revise";
 
   await db
     .update(shotVersions)
     .set({ status: versionStatus })
     .where(eq(shotVersions.id, shotVersionId));
+
+  // Read *after* the version write above, so a veto that just cleared this
+  // version's approval is already reflected - that is how a human rejection
+  // revokes an approval without a special case, while a later failed take
+  // leaves an earlier approval standing. A veto with nothing else approved
+  // lands on revise rather than needs_human: it was already reviewed by a
+  // human, which is the point.
+  const approvedElsewhere = await db
+    .select({ id: shotVersions.id })
+    .from(shotVersions)
+    .where(and(eq(shotVersions.shotId, shotId), eq(shotVersions.status, "approved")))
+    .limit(1);
+  const shotStatus = resolveShotStatus("revise", {
+    shotHasApprovedVersion: approvedElsewhere.length > 0,
+  });
+
   await db.update(shots).set({ status: shotStatus }).where(eq(shots.id, shotId));
   await db.insert(approvalEvents).values({
     shotId,

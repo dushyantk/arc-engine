@@ -51,7 +51,7 @@ from uuid import UUID
 
 from minio.error import S3Error
 
-from agents.approval import evaluate
+from agents.approval import evaluate, resolve_shot_status
 from agents.critic import critique_shot_version
 from agents.decision_log import new_run_id
 from agents.generation import generate_shot_version
@@ -103,7 +103,16 @@ async def _apply_result(
 
     version_status = "approved" if status == "approved" else "failed"
     await db.update_shot_version_status(shot_version_id, version_status)
-    await db.update_shot_status(shot.id, status)
+
+    # This verdict is about this version. Whether the shot is approved is a
+    # separate question, answered from the approval record - see
+    # approval.resolve_shot_status().
+    shot_status = resolve_shot_status(
+        status, shot_has_approved_version=await db.has_approved_version(shot.id)
+    )
+    if shot_status != status:
+        print(f"shot stays {shot_status} (an earlier version is approved)")
+    await db.update_shot_status(shot.id, shot_status)
     await db.insert_approval_event(
         shot_id=shot.id,
         shot_version_id=shot_version_id,

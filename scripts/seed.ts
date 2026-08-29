@@ -46,6 +46,19 @@ const REF_BASE = "refs/platform-chase";
 const GEN_BASE = "gen";
 
 async function main() {
+  // This inserts a fresh fixture; it does not reconcile with what is already
+  // there. Run against the working database and you get a second "Platform
+  // Chase" alongside the one carrying real generations and real spend.
+  const existing = await db.select({ id: shows.id }).from(shows).limit(1);
+  if (existing.length > 0 && !process.argv.includes("--force")) {
+    console.error(
+      "Refusing to seed: this database already has shows in it.\n" +
+        "The fixture is additive, so seeding now would duplicate the hierarchy\n" +
+        "alongside real runs. Use --force only against an empty or throwaway database.",
+    );
+    process.exit(1);
+  }
+
   console.log("Seeding: Platform Chase (SQ010)");
 
   const [show] = await db.insert(shows).values({ name: "Platform Chase" }).returning();
@@ -93,31 +106,26 @@ async function main() {
   const [sh010, sh020, sh030] = await db
     .insert(shots)
     .values([
-      { sequenceId: sequence.id, code: "SH010", orderIndex: 1, screenDirection: "L_TO_R", status: "approved" },
+      // Nothing here is seeded approved. An approval is a durable claim that a
+      // real critique passed on real footage, and the fixture's video keys have
+      // no bytes behind them - seeding one fabricates the exact state the
+      // product exists to be trusted about, and now that shot status is
+      // resolved from the approval record it would never clear on its own.
+      { sequenceId: sequence.id, code: "SH010", orderIndex: 1, screenDirection: "L_TO_R", status: "pending" },
       { sequenceId: sequence.id, code: "SH020", orderIndex: 2, screenDirection: "L_TO_R", status: "revise" },
-      { sequenceId: sequence.id, code: "SH030", orderIndex: 3, screenDirection: "L_TO_R", status: "approved" },
+      { sequenceId: sequence.id, code: "SH030", orderIndex: 3, screenDirection: "L_TO_R", status: "pending" },
     ])
     .returning();
 
-  // SH010 — one generation, approved.
-  const [sh010v1] = await db
-    .insert(shotVersions)
-    .values({
-      shotId: sh010.id,
-      versionNumber: 1,
-      generationPrompt:
-        "Maya runs across Platform 2 at night in the rain, carrying her red leather suitcase in her right hand. Key light camera-left. Wide shot, L to R.",
-      generationSettings: { model: "veo-3.1", seed: 10201 },
-      videoAssetUrl: `${GEN_BASE}/SH010/v001.mp4`,
-      status: "approved",
-    })
-    .returning();
-  await db.insert(approvalEvents).values({
+  // SH010 — one generation, never critiqued.
+  await db.insert(shotVersions).values({
     shotId: sh010.id,
-    shotVersionId: sh010v1.id,
-    actor: "agent",
-    decision: "approved",
-    reason: "All continuity checks pass.",
+    versionNumber: 1,
+    generationPrompt:
+      "Maya runs across Platform 2 at night in the rain, carrying her red leather suitcase in her right hand. Key light camera-left. Wide shot, L to R.",
+    generationSettings: { model: "veo-3.1", seed: 10201 },
+    videoAssetUrl: `${GEN_BASE}/SH010/v001.mp4`,
+    status: "candidate",
   });
 
   // SH020 — two generations so far, still failing. This is the shot the
@@ -202,28 +210,18 @@ async function main() {
     reason: "Creature geometry inconsistent with SH020. Maya's face drifts in the final frames.",
   });
 
-  const [sh030v3] = await db
-    .insert(shotVersions)
-    .values({
-      shotId: sh030.id,
-      versionNumber: 3,
-      generationPrompt:
-        "Maya's suitcase remains in right hand as the creature's silhouette passes overhead. Key light camera-left, matched to SH020. Lock reference: Maya character sheet.",
-      generationSettings: {
-        model: "veo-3.1",
-        seed: 10303,
-        imageRefs: [suitcase.imageUrl, maya.imageUrl],
-      },
-      videoAssetUrl: `${GEN_BASE}/SH030/v003.mp4`,
-      status: "approved",
-    })
-    .returning();
-  await db.insert(approvalEvents).values({
+  await db.insert(shotVersions).values({
     shotId: sh030.id,
-    shotVersionId: sh030v3.id,
-    actor: "agent",
-    decision: "approved",
-    reason: "All continuity checks pass. Sequence agrees with itself.",
+    versionNumber: 3,
+    generationPrompt:
+      "Maya's suitcase remains in right hand as the creature's silhouette passes overhead. Key light camera-left, matched to SH020. Lock reference: Maya character sheet.",
+    generationSettings: {
+      model: "veo-3.1",
+      seed: 10303,
+      imageRefs: [suitcase.imageUrl, maya.imageUrl],
+    },
+    videoAssetUrl: `${GEN_BASE}/SH030/v003.mp4`,
+    status: "candidate",
   });
 
   console.log("Postgres seeded: 1 show, 1 sequence, 3 shots, 3 references, 6 shot versions.");

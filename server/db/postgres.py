@@ -224,6 +224,18 @@ class Database:
     async def update_shot_status(self, shot_id: UUID, status: str) -> None:
         await self.pool.execute("UPDATE shots SET status = $2 WHERE id = $1", shot_id, status)
 
+    async def has_approved_version(self, shot_id: UUID) -> bool:
+        """Whether any version of this shot currently carries an approval.
+
+        Latest and approved are independent axes, so this is deliberately not
+        "is the newest version approved" - see resolve_shot_status().
+        """
+        row = await self.pool.fetchrow(
+            "SELECT 1 FROM shot_versions WHERE shot_id = $1 AND status = 'approved' LIMIT 1",
+            shot_id,
+        )
+        return row is not None
+
     async def insert_approval_event(
         self,
         *,

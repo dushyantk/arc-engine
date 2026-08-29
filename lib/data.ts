@@ -402,6 +402,39 @@ export async function getShotDetail(
 }
 
 // ---------------------------------------------------------------------------
+// Shot state rules.
+
+export type ShotStatusValue =
+  | "pending"
+  | "generating"
+  | "reviewing"
+  | "revise"
+  | "approved"
+  | "needs_human";
+
+// RULE: every path that records a verdict on a version resolves shots.status
+// through this function. Never write a version's own verdict straight onto the
+// shot. Mirrors server/agents/approval.py resolve_shot_status() - the same rule
+// stated twice, deliberately, like the Zod/Pydantic contracts.
+//
+// Latest and approved are independent axes. An approval is a durable fact about
+// one version, not a claim about whichever version is newest: a later version
+// may not have been evaluated yet, or may have been fired deliberately after the
+// approval landed. Neither revokes it, and approving never locks the shot
+// against generating more. Writing the newest verdict straight onto the shot is
+// what let a re-critique of an old version silently move a shot's status.
+//
+// A human veto is the one thing that revokes an approval, and it does so by
+// clearing that version's own status before this is called, so the answer still
+// follows from the record rather than from a special case.
+export function resolveShotStatus(
+  versionVerdict: ShotStatusValue,
+  { shotHasApprovedVersion }: { shotHasApprovedVersion: boolean },
+): ShotStatusValue {
+  return shotHasApprovedVersion ? "approved" : versionVerdict;
+}
+
+// ---------------------------------------------------------------------------
 // Shot posters.
 //
 // RULE: any surface showing a still for a shot resolves it through
