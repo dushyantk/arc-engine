@@ -418,7 +418,17 @@ above, not forgotten).
 
 ## Phase 5 — Beta hardening
 
-- [ ] Smoke tests: Postgres + ClickHouse connectivity, one seeded shot through the full agent loop
+- [x] Smoke tests: Postgres + ClickHouse connectivity — `server/tests/`, pytest + pytest-asyncio,
+      17 tests (a892794). Connectivity and schema shape for Postgres, ClickHouse and MinIO, plus
+      the deterministic logic that gates spend and shipping: `QCFinding` rejecting malformed critic
+      output, the approval gate's fail/warning/cap-out transitions, and `resolve_shot_status`. They
+      skip rather than fail with the stack down (verified against dead ports: 11 passed, 6 skipped,
+      0 failed). **The "one seeded shot through the full agent loop" half is deliberately not
+      implemented**: that path makes billed Veo and Gemini calls, and a suite must never be able to
+      spend money by being run. Not hypothetical — the first run of these tests wrote 8 rows into
+      the live `agent_decision_log` (`evaluate()` logs as a side effect, and the landing page counts
+      those rows); removed, and `log_decision` is now stubbed by an autouse fixture so no test in
+      that module can reintroduce it.
 - [x] Playwright e2e: sequence view → shot detail → approve → export, happy path —
       [`playwright.config.ts`](../playwright.config.ts) (web server on **3211**, never 3210) and
       [`e2e/`](../e2e): hierarchy navigation, create flow, approve → export, reference control.
@@ -430,8 +440,16 @@ above, not forgotten).
       asserts the real tree and `manifest.json`, not that a button exists.
 - [ ] Cost/latency view sourced from `agent_decision_log` (dashboard, not just raw table)
 - [ ] `pnpm build` clean, FastAPI starts clean, docker-compose up clean from a fresh checkout
-- [ ] README with quickstart commands and the demo script (3-shot railway sequence, 7 generations
-      to converge, per the pitch)
+- [ ] README with quickstart commands and the demo script (3-shot railway sequence, per the pitch).
+      **Quickstart half done** in a892794 — the README was telling people to supply Vertex
+      credentials the product stopped needing once Veo turned out to be reachable through the
+      Gemini Developer API; it now carries the real prerequisites (including ffmpeg and the two
+      schema pushes), the ports table, the loop, every test command, and the scriptable run
+      invocations with flags checked against the actual argparse. **Still open: the demo script
+      itself** — the walkthrough for showing the product start to finish. Deliberately left with
+      the beta-release item below, since a demo script is only worth writing against the state the
+      release actually ships. Note the original figure here was stale: the sequence took 9 real
+      generations, not 7.
 - [ ] Beta release: tag, confirm demo runs unattended start to finish
 
 ---
