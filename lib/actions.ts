@@ -5,9 +5,17 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { approvalEvents, sequences, shotVersions, shots, shows } from "@/db/schema";
+import {
+  approvalEvents,
+  referenceAssets,
+  sequences,
+  shotVersions,
+  shots,
+  shows,
+} from "@/db/schema";
 import { callRuntime } from "@/lib/runtime";
 import { resolveShotStatus } from "@/lib/data";
+import { getMinioClient, MINIO_BUCKET } from "@/lib/minio";
 
 // Creation is scoped to the parent context, strictly: a show is created
 // only from the shows-list root, a sequence only from inside a show page,
@@ -193,4 +201,91 @@ export async function submitHumanApproval(
   const path = `/dashboard/${showId}/${sequenceCode}/${shotCode}`;
   revalidatePath(path);
   redirect(path);
+}
+
+// ---------------------------------------------------------------------------
+// Reference control.
+//
+// A locked reference is canon: get_reference_assets() in server/db/postgres.py
+// selects `WHERE locked_at IS NOT NULL`, so the planner and the generation
+// adapter only ever see locked ones. Unlocking is therefore a real operator
+// verb with a real consequence - the agent stops conditioning on that image -
+// and not a display flag. The UI has to say so, because an unlocked reference
+// failing silently is exactly the kind of hidden state this product exists to
+// argue against.
+//
+// Key layout mirrors _key() in server/reference_ingestion.py, the programmatic
+// path: refs/{showId}/{slug}.{ext}. Upload locks immediately, matching that
+// path's insert_reference_asset(), so the two cannot disagree about whether a
+// freshly ingested reference is usable.
+
+const REFERENCE_MAX_BYTES = 10 * 1024 * 1024;
+
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+const uploadReferenceSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80),
+  type: z.enum(["character", "prop", "environment", "palette"]),
+});
+
+export async function uploadReferenceAsset(showId: string, formData: FormData) {
+  const parsed = uploadReferenceSchema.parse({
+    name: formData.get("name"),
+    type: formData.get("type"),
+  });
+
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Choose an image to upload.");
+  }
+  const extension = EXTENSION_BY_TYPE[file.type];
+  if (!extension) {
+    throw new Error(
+      `Unsupported image type ${file.type || "(unknown)"}. Use PNG, JPEG or WebP.`,
+    );
+  }
+  if (file.size > REFERENCE_MAX_BYTES) {
+    throw new Error(
+      `Image is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is ${REFERENCE_MAX_BYTES / 1024 / 1024}MB.`,
+    );
+  }
+
+  const slug = parsed.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const key = `refs/${showId}/${slug}.${extension}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  await getMinioClient().putObject(MINIO_BUCKET, key, bytes, bytes.length, {
+    "Content-Type": file.type,
+  });
+
+  await db.insert(referenceAssets).values({
+    showId,
+    type: parsed.type,
+    name: parsed.name,
+    imageUrl: key,
+    lockedAt: new Date(),
+    approvedBy: "operator",
+  });
+
+  revalidatePath(`/dashboard/${showId}`);
+}
+
+export async function setReferenceLock(
+  showId: string,
+  referenceId: string,
+  formData: FormData,
+) {
+  const locked = formData.get("locked") === "true";
+  await db
+    .update(referenceAssets)
+    .set({
+      lockedAt: locked ? new Date() : null,
+      approvedBy: locked ? "operator" : null,
+    })
+    .where(eq(referenceAssets.id, referenceId));
+  revalidatePath(`/dashboard/${showId}`);
 }

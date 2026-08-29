@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Lock, Plus, Unlock } from "lucide-react";
 import { getShowDetail } from "@/lib/data";
-import { createSequence } from "@/lib/actions";
+import { createSequence, setReferenceLock, uploadReferenceAsset } from "@/lib/actions";
+import { UploadReferenceDialog } from "@/components/upload-reference-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ export default async function ShowDetailPage({
 
   const { show, sequences, referenceAssets } = detail;
   const createSequenceForShow = createSequence.bind(null, showId);
+  const uploadReferenceForShow = uploadReferenceAsset.bind(null, showId);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -133,14 +135,27 @@ export default async function ShowDetailPage({
       </div>
 
       <div className="mt-10">
-        <h2 className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          References
-        </h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+              References
+            </h2>
+            <p className="mt-1 max-w-[62ch] text-xs text-muted-foreground">
+              Locked references are the canon a run is judged against — the planner
+              and the generation adapter only ever see locked ones. Unlock to take
+              an image out of canon without deleting its lineage.
+            </p>
+          </div>
+          <UploadReferenceDialog action={uploadReferenceForShow} />
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {referenceAssets.map((ref) => (
             <div
               key={ref.id}
-              className="overflow-hidden rounded-md border border-border bg-card"
+              className={`overflow-hidden rounded-md border bg-card ${
+                ref.lockedAt ? "border-border" : "border-warning/40"
+              }`}
             >
               <div className="relative aspect-video bg-secondary">
                 <Image
@@ -148,25 +163,59 @@ export default async function ShowDetailPage({
                   alt={ref.name}
                   fill
                   sizes="(min-width: 640px) 33vw, 100vw"
-                  className="object-cover"
+                  className={`object-cover ${ref.lockedAt ? "" : "opacity-45 saturate-50"}`}
+                  unoptimized
                 />
+                {!ref.lockedAt ? (
+                  <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-sm bg-background/85 px-1.5 py-0.5 font-mono text-[10px] text-warning">
+                    <Unlock className="size-3" />
+                    NOT IN CANON
+                  </span>
+                ) : null}
               </div>
               <div className="p-3">
                 <p className="text-sm font-medium">{ref.name}</p>
-                <div className="mt-1 flex items-center justify-between">
+                <div className="mt-1.5 flex items-center justify-between gap-2">
                   <Badge variant="outline">{ref.type}</Badge>
                   {ref.lockedAt ? (
-                    <span className="font-mono text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-success">
+                      <Lock className="size-3" />
                       Locked
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="font-mono text-[11px] text-warning">Unlocked</span>
+                  )}
                 </div>
+                <p className="mt-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                  {ref.lockedAt ? (
+                    <>
+                      {ref.lockedAt.toISOString().slice(0, 10)}
+                      {ref.approvedBy ? ` · ${ref.approvedBy}` : ""}
+                    </>
+                  ) : (
+                    "Not used by any run while unlocked"
+                  )}
+                </p>
+                <form
+                  action={setReferenceLock.bind(null, showId, ref.id)}
+                  className="mt-2.5"
+                >
+                  <input
+                    type="hidden"
+                    name="locked"
+                    value={ref.lockedAt ? "false" : "true"}
+                  />
+                  <Button type="submit" variant="outline" size="sm" className="w-full">
+                    {ref.lockedAt ? "Unlock" : "Lock as canon"}
+                  </Button>
+                </form>
               </div>
             </div>
           ))}
           {referenceAssets.length === 0 ? (
             <p className="col-span-full rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-              No reference images yet.
+              No reference images yet. Upload the character, prop, environment or
+              palette plates this show should be held to.
             </p>
           ) : null}
         </div>
