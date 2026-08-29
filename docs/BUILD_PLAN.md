@@ -181,12 +181,19 @@ the run-control verification pass; recritique calls have no Veo cost but do add 
       `dashboard/layout.tsx`; verified for real by pointing ClickHouse at an unreachable port and
       confirming the boundary rendered, then reverting), `app/dashboard/not-found.tsx` (styled 404
       for an unknown shot code, rail still visible).
-- [ ] Open product question: `shot.status` currently reflects whichever version was *last
-      evaluated*, not the latest version number — SQ010 hit this for real on 2026-08-17 (SH020
-      reads `approved` while its latest version, v6, reads `failed`, because the approving
-      evaluation was a re-critique of v5). Decide whether shot status should instead be derived
-      from the latest version's own status, and whether re-critiquing an older version should be
-      allowed to move shot status at all. See `generations/LEDGER.md` Phase 3 §17.
+- [x] Open product question: `shot.status` vs. latest version. **Decided and implemented in
+      4b2c939.** Latest and approved are independent axes. An approval is a durable fact about one
+      version, not a claim about whichever version is newest: a later version may simply not have
+      been evaluated yet, or may have been fired deliberately after the approval landed — neither
+      revokes it, and approving never locks the shot against generating more. So "shot approved,
+      latest version failed" is a legitimate state to display, not a contradiction to design away.
+      Shot status is resolved from the approval record through a named rule on both sides
+      (`approval.resolve_shot_status()`, `resolveShotStatus()` in [`lib/data.ts`](../lib/data.ts)),
+      each mandating that no path writes a version's verdict straight onto the shot — doing exactly
+      that, unconditionally, in `_evaluate_and_record` is what let a re-critique of an old version
+      silently move a shot's status. A human veto remains the one thing that revokes an approval,
+      and needs no special case: it clears that version's own status first, so resolution still
+      follows from the record. See `generations/LEDGER.md` Phase 3 §17 for the original symptom.
 
 ## Phase 4 — Export & handoff
 
@@ -327,16 +334,24 @@ above, not forgotten).
       `KeyError: DATABASE_URL` on a bare invocation, and `run_id` staying invisible until process
       exit (needed manual `PYTHONUNBUFFERED=1`) which blocked watching a live run. Load the repo
       `.env` from the entrypoints; print run_id unbuffered.
-- [ ] **`scripts/seed.ts` re-seeds two known-bad states.** It still carries the
-      pre-recanonization scar text (3 `continuity_fingerprints` literals) and seeds SH010 v1 as
-      `approved` with a `videoAssetUrl` that has no bytes behind it — the exact source of the
-      stale-approved bug fixed in 05c90c4. It's also not idempotent against the real rows that
-      now exist. Update the canon text, stop seeding fake version-level approvals, and refuse to
-      run (or scope down) when real data is present.
-- [ ] **Live-DB hygiene: SH010 v1 still reads `status='approved'`.** Playback/export now gate
-      around it, but the row itself is still wrong. Resolve together with the open shot.status
-      product question in Phase 3 (whether re-evaluations of old versions move shot status, and
-      whether version status should ever survive contradicting later evidence).
+- [ ] **`scripts/seed.ts` re-seeds a known-bad state.** Two of the three problems are closed in
+      4b2c939: it no longer fabricates approvals (SH010 v1 and SH030 v3 seeded as `approved`,
+      against video keys with no bytes, with agent `approval_events` reading "All continuity checks
+      pass" — harmless while later failures overwrote them, permanent under the approval-record
+      rule; now seeded `candidate` with their shots `pending`), and it refuses to run against a
+      database that already has shows rather than silently adding a second Platform Chase alongside
+      the one carrying real spend. **Still open:** the pre-recanonization scar text in 3
+      `continuity_fingerprints` literals — the canon was corrected in ec5bdba to a fresh cut after
+      three real generations proved "healed scar" unproducible, and the fixture never caught up.
+- [x] **Live-DB hygiene: SH010 v1 still reads `status='approved'`.** Closed in 4b2c939, alongside
+      the shot.status decision it was waiting on — the approval-record rule made these rows
+      load-bearing rather than merely untidy. SH010 v1 and SH030 v3 were both seed fixtures with no
+      bytes behind their video keys and no critique ever run on them; set to `candidate`, and their
+      two fabricated `agent:approved` events deleted, since they assert a continuity pass that
+      never happened. Real history was checked first and is untouched: the surviving agent
+      approvals are SH020 v5 and SH030 v5 from real runs on 2026-08-18, both against real stored
+      footage, and the human rejection is still on record. No version currently holds an approval,
+      which is the honest state of this sequence.
 
 ### Dashboard & frontend
 
@@ -352,9 +367,9 @@ above, not forgotten).
       mandated `pickShotPoster()` helper in [`lib/data.ts`](../lib/data.ts), with the version
       labelled on the card. `server/backfill_posters.py` filled in the history: 9 real posters from
       real footage, 6 versions skipped for having no bytes behind their key, 0 failures. Cards mark
-      a fallback **STAND-IN** where the version the status describes has no footage — real state
-      here, since SH010 v1 and SH030 v3 are both `approved` rows pointing at bytes never uploaded
-      (see the live-DB hygiene item below, which this makes visible rather than resolves).
+      a fallback **STAND-IN** where the version the status describes has no footage. That surfaced
+      the two `approved` rows pointing at bytes never uploaded, which 4b2c939 then corrected — the
+      badge remains for the general case rather than for those two rows.
 - [x] **Landing-page stats are hardcoded and stale.** Closed in df1fbe3 — `app/page.tsx` carries
       neither a `STATS` array nor a `DEFECT_CATEGORIES` literal any more. `getLandingStats()` and
       `getLandingFindings()` ([`lib/data.ts`](../lib/data.ts)) read `agent_decision_log` and
