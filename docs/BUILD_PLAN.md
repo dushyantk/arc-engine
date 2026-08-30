@@ -397,8 +397,17 @@ above, not forgotten).
       and references live on the show page where they are scoped to a show, which is the only place
       they mean anything. The view now carries image, type, locked date and approver as asked, plus
       the lock state and its consequence. The remaining dead rail label is EXPORT, below.
-- [ ] **EXPORT rail item is a dead label**; export exists per-shot only. Either a sequence-level
-      export page (bundle every approved shot) or link the rail to the per-shot export pages.
+- [x] **EXPORT rail item is a dead label.** Closed in f1824f7 — both halves, not either/or.
+      `/dashboard/export` lists every sequence across every show with its shots' real status, a
+      package download on the approved ones and a sequence bundle
+      (`/api/export/sequence/[sequenceId]`). It deliberately lists sequences with nothing to ship:
+      with no approved shot anywhere today, the page says so and names approval as the way through,
+      rather than rendering an empty list that hides the gate. The zip tree, previously assembled
+      inline in the per-shot route, is now `addShotFolder()` in
+      [`lib/export-zip.ts`](../lib/export-zip.ts), mandated for every export route — verified that
+      the same shot exported per-shot and via its sequence produces identical trees and
+      byte-identical files apart from the two embedded timestamps. The sequence route returns 409
+      with an explanation when nothing is approved rather than a valid-looking empty zip.
 - [ ] **Sessions list can't distinguish a live run from a finished one** (no running-now
       indicator) and offers no way to start one (depends on the FastAPI run-trigger task above).
 - [x] **Landing page reads as an internal page, not a polished landing.** Closed in df1fbe3 —
