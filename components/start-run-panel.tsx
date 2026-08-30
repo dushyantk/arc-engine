@@ -26,14 +26,30 @@ const TIER_LABELS: Record<string, string> = {
   "veo-3.1-lite-generate-preview": "Lite",
 };
 
+export type ShotSpendSummary = {
+  calls: number;
+  spendUsd: number;
+  generations: number;
+  totalSpendUsd: number;
+  /** True when this shot code exists in more than one show. The decision log
+   *  anchors rows by shot code only, so the figure then covers every show that
+   *  uses the code, and the panel has to say so rather than imply it is this
+   *  shot's own spend. */
+  codeIsAmbiguous: boolean;
+};
+
 export function StartRunPanel({
   shotCode,
   showName,
   hasBrief,
+  spend,
 }: {
   shotCode: string;
   showName: string;
   hasBrief: boolean;
+  /** What this shot and the whole system have cost so far, so the consent
+   *  checkbox below is an informed one rather than a bare confirmation. */
+  spend?: ShotSpendSummary;
 }) {
   const router = useRouter();
   const [pricing, setPricing] = useState<Record<string, number> | null>(null);
@@ -139,6 +155,28 @@ export function StartRunPanel({
             for an ~{ASSUMED_SECONDS}s shot, plus a few cents of Gemini
             planning/critique cost. Real, billed, not a placeholder number.
           </p>
+
+          {/* Consent is only informed if it says what has already been spent
+              here. Attributed by shot code, which is what the decision log
+              records - see getShotSpend(). */}
+          {spend && spend.calls > 0 ? (
+            <p className="mt-2 rounded-sm border border-border bg-secondary/60 px-3 py-2 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+              Logged against shot code {shotCode}:{" "}
+              <span className="text-foreground">${spend.spendUsd.toFixed(2)}</span> across{" "}
+              {spend.calls} calls and {spend.generations} generation
+              {spend.generations === 1 ? "" : "s"}. Total spend to date{" "}
+              <span className="text-foreground">${spend.totalSpendUsd.toFixed(2)}</span>.
+              {spend.codeIsAmbiguous ? (
+                <>
+                  {" "}
+                  <span className="text-warning">
+                    That code exists in more than one show, so this figure covers all of
+                    them — the decision log records the shot code, not the show.
+                  </span>
+                </>
+              ) : null}
+            </p>
+          ) : null}
 
           <label className="flex items-start gap-2 text-sm">
             <input

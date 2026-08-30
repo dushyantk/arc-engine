@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getShotDetail } from "@/lib/data";
+import { getCostBreakdown, getShotDetail, getShotSpend } from "@/lib/data";
 import { submitHumanApproval, updateShotBrief } from "@/lib/actions";
 import { ShotStatusBadge, VersionStatusBadge } from "@/components/status-badge";
 import { ShotVideo } from "@/components/shot-video";
@@ -27,7 +27,11 @@ export default async function ShotDetailPage({
   params: Promise<{ showId: string; sequenceCode: string; shotCode: string }>;
 }) {
   const { showId, sequenceCode, shotCode } = await params;
-  const detail = await getShotDetail(showId, sequenceCode, shotCode);
+  const [detail, shotSpend, costs] = await Promise.all([
+    getShotDetail(showId, sequenceCode, shotCode),
+    getShotSpend(shotCode),
+    getCostBreakdown(),
+  ]);
 
   if (!detail) notFound();
 
@@ -73,6 +77,13 @@ export default async function ShotDetailPage({
             shotCode={shot.code}
             showName={show?.name ?? ""}
             hasBrief={Boolean(shot.brief)}
+            spend={{
+              calls: shotSpend.calls,
+              spendUsd: shotSpend.spendUsd,
+              generations: shotSpend.generations,
+              totalSpendUsd: costs.summary.totalSpendUsd,
+              codeIsAmbiguous: shotSpend.codeIsAmbiguous,
+            }}
           />
         </div>
       </div>

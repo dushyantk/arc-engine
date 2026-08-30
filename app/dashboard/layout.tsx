@@ -75,6 +75,7 @@ export default async function DashboardLayout({
               count={stats.sessionLogCount}
               href="/dashboard/sessions"
             />
+            <RailItem label="COST" href="/dashboard/cost" />
             <RailItem label="EXPORT" />
           </nav>
         </aside>

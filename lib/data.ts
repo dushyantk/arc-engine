@@ -585,6 +585,150 @@ export async function getLandingStats(): Promise<LandingStats> {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Cost and latency. Same source as the landing page's figures, at the grain an
+// operator needs to answer "where did the money go" and "what is slow".
+
+export type AgentCost = {
+  agentName: string;
+  calls: number;
+  spendUsd: number;
+  tokensIn: number;
+  tokensOut: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+};
+
+export type ModelCost = {
+  model: string;
+  calls: number;
+  spendUsd: number;
+  avgMs: number;
+};
+
+export type CostBreakdown = {
+  summary: {
+    totalCalls: number;
+    totalSpendUsd: number;
+    runs: number;
+    generations: number;
+    tokensIn: number;
+    tokensOut: number;
+    firstAt: string | null;
+    lastAt: string | null;
+  };
+  byAgent: AgentCost[];
+  byModel: ModelCost[];
+};
+
+export async function getCostBreakdown(): Promise<CostBreakdown> {
+  const client = getClickHouseClient();
+  const [summaryResult, agentResult, modelResult] = await Promise.all([
+    client.query({
+      query: `
+        SELECT count() AS calls, sum(cost_usd) AS spend, uniqExact(run_id) AS runs,
+               countIf(agent_name = 'generation_adapter') AS generations,
+               sum(tokens_in) AS tokens_in, sum(tokens_out) AS tokens_out,
+               toString(min(created_at)) AS first_at, toString(max(created_at)) AS last_at
+        FROM dailies.agent_decision_log
+      `,
+      format: "JSONEachRow",
+    }),
+    client.query({
+      query: `
+        SELECT agent_name, count() AS calls, sum(cost_usd) AS spend,
+               sum(tokens_in) AS tokens_in, sum(tokens_out) AS tokens_out,
+               round(quantile(0.5)(latency_ms)) AS p50,
+               round(quantile(0.95)(latency_ms)) AS p95,
+               max(latency_ms) AS max_ms
+        FROM dailies.agent_decision_log
+        GROUP BY agent_name
+        ORDER BY spend DESC, calls DESC
+      `,
+      format: "JSONEachRow",
+    }),
+    client.query({
+      query: `
+        SELECT model, count() AS calls, sum(cost_usd) AS spend,
+               round(avg(latency_ms)) AS avg_ms
+        FROM dailies.agent_decision_log
+        GROUP BY model
+        ORDER BY spend DESC, calls DESC
+      `,
+      format: "JSONEachRow",
+    }),
+  ]);
+
+  const [summaryRow] = await summaryResult.json<Record<string, string>>();
+  const agentRows = await agentResult.json<Record<string, string>>();
+  const modelRows = await modelResult.json<Record<string, string>>();
+
+  return {
+    summary: {
+      totalCalls: Number(summaryRow?.calls ?? 0),
+      totalSpendUsd: Number(summaryRow?.spend ?? 0),
+      runs: Number(summaryRow?.runs ?? 0),
+      generations: Number(summaryRow?.generations ?? 0),
+      tokensIn: Number(summaryRow?.tokens_in ?? 0),
+      tokensOut: Number(summaryRow?.tokens_out ?? 0),
+      firstAt: summaryRow?.first_at ?? null,
+      lastAt: summaryRow?.last_at ?? null,
+    },
+    byAgent: agentRows.map((row) => ({
+      agentName: row.agent_name,
+      calls: Number(row.calls),
+      spendUsd: Number(row.spend),
+      tokensIn: Number(row.tokens_in),
+      tokensOut: Number(row.tokens_out),
+      p50Ms: Number(row.p50),
+      p95Ms: Number(row.p95),
+      maxMs: Number(row.max_ms),
+    })),
+    byModel: modelRows.map((row) => ({
+      model: row.model,
+      calls: Number(row.calls),
+      spendUsd: Number(row.spend),
+      avgMs: Number(row.avg_ms),
+    })),
+  };
+}
+
+// Spend already logged against a shot, for the cost-consent panel: an operator
+// about to authorise another billed run should see what this shot has cost so
+// far, not just confirm a blank estimate.
+//
+// Attributed by the shot code embedded in input_ref, which is the only shot
+// anchor the decision log carries - it has no show column. Shot codes are unique
+// per sequence, not globally (SH010 exists in two shows today), so this is
+// "spend logged against this code" rather than a per-row-exact figure. Stated
+// that way in the UI rather than implied to be exact.
+export async function getShotSpend(shotCode: string) {
+  const client = getClickHouseClient();
+  const [result, codeUses] = await Promise.all([
+    client.query({
+      query: `
+        SELECT count() AS calls, sum(cost_usd) AS spend,
+               countIf(agent_name = 'generation_adapter') AS generations
+        FROM dailies.agent_decision_log
+        WHERE extract(input_ref, 'SH[0-9]+') = {code:String}
+      `,
+      query_params: { code: shotCode },
+      format: "JSONEachRow",
+    }),
+    // Surfaced rather than hidden: if the code is reused across shows, the
+    // figure above spans all of them and the caller must say so.
+    db.select({ n: count() }).from(shots).where(eq(shots.code, shotCode)),
+  ]);
+  const [row] = await result.json<{ calls: string; spend: string; generations: string }>();
+  return {
+    calls: Number(row?.calls ?? 0),
+    spendUsd: Number(row?.spend ?? 0),
+    generations: Number(row?.generations ?? 0),
+    codeIsAmbiguous: (codeUses[0]?.n ?? 0) > 1,
+  };
+}
+
 export type LandingFinding = QcFinding & {
   shotCode: string;
   version: number;
