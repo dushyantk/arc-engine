@@ -76,7 +76,7 @@ export default async function DashboardLayout({
               href="/dashboard/sessions"
             />
             <RailItem label="COST" href="/dashboard/cost" />
-            <RailItem label="EXPORT" />
+            <RailItem label="EXPORT" href="/dashboard/export" />
           </nav>
         </aside>
 

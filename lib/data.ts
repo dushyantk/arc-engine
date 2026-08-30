@@ -586,6 +586,119 @@ export async function getLandingStats(): Promise<LandingStats> {
 }
 
 // ---------------------------------------------------------------------------
+// Export surface: what is actually shippable right now, across every show.
+
+export type ExportableShot = {
+  shotId: string;
+  shotCode: string;
+  status: string;
+  approvedVersionNumber: number | null;
+  hasStoredFootage: boolean;
+};
+
+export type ExportableSequence = {
+  showId: string;
+  showName: string;
+  sequenceId: string;
+  sequenceCode: string;
+  shots: ExportableShot[];
+  approvedCount: number;
+  wholeSequenceApproved: boolean;
+};
+
+// Deliberately returns every sequence, not just the ones with something to
+// ship. An operator opening Export needs to see why nothing is exportable at
+// least as much as they need a download button - an empty page that just says
+// "nothing here" hides the gate rather than explaining it.
+export async function getExportableWork(): Promise<ExportableSequence[]> {
+  const rows = await db
+    .select({
+      showId: shows.id,
+      showName: shows.name,
+      sequenceId: sequences.id,
+      sequenceCode: sequences.code,
+      shotId: shots.id,
+      shotCode: shots.code,
+      shotStatus: shots.status,
+      orderIndex: shots.orderIndex,
+    })
+    .from(sequences)
+    .innerJoin(shows, eq(sequences.showId, shows.id))
+    .leftJoin(shots, eq(shots.sequenceId, sequences.id))
+    .orderBy(asc(shows.name), asc(sequences.code), asc(shots.orderIndex));
+
+  const bySequence = new Map<string, ExportableSequence>();
+  const approvedShotIds: string[] = [];
+
+  for (const row of rows) {
+    let entry = bySequence.get(row.sequenceId);
+    if (!entry) {
+      entry = {
+        showId: row.showId,
+        showName: row.showName,
+        sequenceId: row.sequenceId,
+        sequenceCode: row.sequenceCode,
+        shots: [],
+        approvedCount: 0,
+        wholeSequenceApproved: false,
+      };
+      bySequence.set(row.sequenceId, entry);
+    }
+    if (!row.shotId || !row.shotCode || !row.shotStatus) continue;
+    entry.shots.push({
+      shotId: row.shotId,
+      shotCode: row.shotCode,
+      status: row.shotStatus,
+      approvedVersionNumber: null,
+      hasStoredFootage: false,
+    });
+    if (row.shotStatus === "approved") approvedShotIds.push(row.shotId);
+  }
+
+  // Resolve the approved version per approved shot, and whether it has bytes -
+  // an approved shot whose footage was never uploaded exports a package with an
+  // empty gen/ folder, and the UI has to be able to warn about that up front.
+  if (approvedShotIds.length > 0) {
+    const versions = await db
+      .select({
+        shotId: shotVersions.shotId,
+        versionNumber: shotVersions.versionNumber,
+        posterAssetUrl: shotVersions.posterAssetUrl,
+        videoAssetUrl: shotVersions.videoAssetUrl,
+      })
+      .from(shotVersions)
+      .where(
+        and(
+          inArray(shotVersions.shotId, approvedShotIds),
+          eq(shotVersions.status, "approved"),
+        ),
+      )
+      .orderBy(desc(shotVersions.versionNumber));
+
+    const byShot = new Map<string, (typeof versions)[number]>();
+    for (const version of versions) {
+      if (!byShot.has(version.shotId)) byShot.set(version.shotId, version);
+    }
+    for (const entry of bySequence.values()) {
+      for (const shot of entry.shots) {
+        const version = byShot.get(shot.shotId);
+        if (!version) continue;
+        shot.approvedVersionNumber = version.versionNumber;
+        shot.hasStoredFootage = Boolean(version.videoAssetUrl);
+      }
+    }
+  }
+
+  for (const entry of bySequence.values()) {
+    entry.approvedCount = entry.shots.filter((s) => s.status === "approved").length;
+    entry.wholeSequenceApproved =
+      entry.shots.length > 0 && entry.approvedCount === entry.shots.length;
+  }
+
+  return [...bySequence.values()];
+}
+
+// ---------------------------------------------------------------------------
 // Cost and latency. Same source as the landing page's figures, at the grain an
 // operator needs to answer "where did the money go" and "what is slow".
 
