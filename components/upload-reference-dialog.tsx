@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,15 +45,14 @@ export function UploadReferenceDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm">
-            <Upload className="size-4" />
-            Add reference
-          </Button>
-        }
-        nativeButton={false}
-      />
+      {/* DialogTrigger renders natively (styled via buttonVariants) instead of
+          wrapping a <Button> - nesting two Base UI primitives' render-prop
+          cloning produces a real SSR/CSR data-slot hydration mismatch on every
+          load. Same reason as app/dashboard/page.tsx. */}
+      <DialogTrigger className={buttonVariants({ variant: "outline", size: "sm" })}>
+        <Upload className="size-4" />
+        Add reference
+      </DialogTrigger>
       <DialogContent>
         <form action={submit}>
           <DialogHeader>
