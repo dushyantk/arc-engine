@@ -48,9 +48,12 @@ def _require_idle() -> None:
         )
 
 
-def _set_active(shot_code: str, mode: str) -> None:
+def _set_active(shot_code: str, mode: str, run_id: str) -> None:
     global _active
-    _active = {"shot_code": shot_code, "mode": mode}
+    # run_id included so a caller can tell *which* logged run is the live one -
+    # the session list has no other way to distinguish a run still in flight
+    # from one that finished, since both are just rows in agent_decision_log.
+    _active = {"shot_code": shot_code, "mode": mode, "run_id": run_id}
 
 
 def _clear_active() -> None:
@@ -94,7 +97,7 @@ async def start_generate(req: GenerateRequest) -> RunStartedResponse:
     _require_idle()
 
     run_id = new_run_id()
-    _set_active(req.shot_code, "generate")
+    _set_active(req.shot_code, "generate", run_id)
 
     async def _task() -> None:
         try:
@@ -121,7 +124,7 @@ async def start_recritique(req: RecritiqueRequest) -> RunStartedResponse:
     _require_idle()
 
     run_id = new_run_id()
-    _set_active(req.shot_code, "recritique")
+    _set_active(req.shot_code, "recritique", run_id)
 
     async def _task() -> None:
         try:
@@ -155,7 +158,7 @@ async def start_reuse_prompt(req: ReusePromptRequest) -> RunStartedResponse:
     _require_idle()
 
     run_id = new_run_id()
-    _set_active(req.shot_code, "reuse_prompt")
+    _set_active(req.shot_code, "reuse_prompt", run_id)
 
     async def _task() -> None:
         try:

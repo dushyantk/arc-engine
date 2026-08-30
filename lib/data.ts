@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   approvalEvents,
@@ -583,6 +583,56 @@ export async function getLandingStats(): Promise<LandingStats> {
       totalSpendUsd > 0 ? (supervisionSpendUsd / totalSpendUsd) * 100 : 0,
     byAgent,
   };
+}
+
+// ---------------------------------------------------------------------------
+// What a run could be started on.
+
+export type RunnableShot = {
+  shotId: string;
+  shotCode: string;
+  status: string;
+  showId: string;
+  showName: string;
+  sequenceCode: string;
+  versionCount: number;
+};
+
+// A run plans against the shot's brief, so a shot without one cannot be started
+// - `run_session.py` errors out and the dashboard's Start run button is disabled.
+// Listing only shots that are actually runnable means the session log can offer
+// a real starting point instead of a button that leads to a dead end.
+export async function getRunnableShots(): Promise<RunnableShot[]> {
+  const rows = await db
+    .select({
+      shotId: shots.id,
+      shotCode: shots.code,
+      status: shots.status,
+      showId: shows.id,
+      showName: shows.name,
+      sequenceCode: sequences.code,
+    })
+    .from(shots)
+    .innerJoin(sequences, eq(shots.sequenceId, sequences.id))
+    .innerJoin(shows, eq(sequences.showId, shows.id))
+    .where(and(isNotNull(shots.brief), ne(shots.brief, "")))
+    .orderBy(asc(shows.name), asc(sequences.code), asc(shots.orderIndex));
+
+  if (rows.length === 0) return [];
+
+  const counts = await db
+    .select({ shotId: shotVersions.shotId, n: count() })
+    .from(shotVersions)
+    .where(
+      inArray(
+        shotVersions.shotId,
+        rows.map((r) => r.shotId),
+      ),
+    )
+    .groupBy(shotVersions.shotId);
+  const countByShot = new Map(counts.map((c) => [c.shotId, c.n]));
+
+  return rows.map((row) => ({ ...row, versionCount: countByShot.get(row.shotId) ?? 0 }));
 }
 
 // ---------------------------------------------------------------------------
