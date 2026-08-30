@@ -320,12 +320,15 @@ above, not forgotten).
       actually produced, not the frozen seed. Verified live: a real recritique on SH030 v5 wrote
       7 genuine finding rows, and a backfill extraction on the same version produced a correct
       fingerprint row.
-- [ ] **No retry on the Veo call itself.** `generate_shot_version` raises raw on transient server
-      errors — hit for real on SH010 (code-13 internal error, after ~$0.03 of planner calls were
-      already spent; a second full attempt was needed). The planner/critic Gemini calls are
-      wrapped in `call_with_retry`; the most expensive call in the system is not. Add a bounded,
-      billing-aware retry (safe: the operation error path bills nothing — cost is only logged on
-      operation success).
+- [x] **No retry on the Veo call itself.** Closed in 0f00093, scoped to unbilled outcomes only —
+      a blanket retry here would be worse than none, since repeating a rejected submission costs an
+      attempt while repeating a generation that already produced output costs another generation.
+      A `VeoNotBilled` exception marks the two safe cases (a submission the API refused, an
+      operation that completed with an error); bounded at 3 attempts, each retry printed rather
+      than swallowed. Deliberately not retried: an operation reporting success with no video
+      (billing ambiguous, so it surfaces), the poll (retries the poll, never the generation), and
+      the download (retried as a download, since the charge has already landed).
+      `server/tests/test_generation_retry.py` pins the boundary with a scripted fake client.
 - [x] **`needs_human` has no resolution path.** Closed in §29 — `HumanApprovalActions` +
       `submitHumanApproval` write a real `approval_events` row with `actor="human"` on shot
       detail; approve/reject + reason, verified live against SH020 v006.
@@ -343,10 +346,13 @@ above, not forgotten).
       the one real fingerprint on record, which also caught and fixed a real bug — the
       `agent_decision_log.agent_name` ClickHouse enum silently dropped an unrecognized value to
       `NULL` instead of failing.
-- [ ] **Server entrypoints don't load `.env` and buffer stdout.** Both bit for real:
-      `KeyError: DATABASE_URL` on a bare invocation, and `run_id` staying invisible until process
-      exit (needed manual `PYTHONUNBUFFERED=1`) which blocked watching a live run. Load the repo
-      `.env` from the entrypoints; print run_id unbuffered.
+- [x] **Server entrypoints don't load `.env` and buffer stdout.** Closed in 95112da —
+      `server/env.py` `bootstrap()`, called by `run_session.py`, `backfill_posters.py` and
+      `main.py` before anything reads `os.environ` at module scope. Both halves were reproduced
+      before fixing and measured after: the bare invocation now reaches the real lookup instead of
+      `KeyError`, and the first line appears 1.2s into a run rather than only at exit.
+      `load_repo_env()` never overwrites an already-set variable. `tests/conftest.py` had grown its
+      own copy of the loader while the entrypoints had none; it now calls the shared one.
 - [ ] **`scripts/seed.ts` re-seeds a known-bad state.** Two of the three problems are closed in
       4b2c939: it no longer fabricates approvals (SH010 v1 and SH030 v3 seeded as `approved`,
       against video keys with no bytes, with agent `approval_events` reading "All continuity checks
