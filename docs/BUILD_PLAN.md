@@ -431,11 +431,20 @@ above, not forgotten).
       pixel-identical, and every remaining delta traceable to live data replacing static prose or to
       two unsourced quotes deliberately dropped (see the note in that commit — they came from
       `generations/LEDGER.md`, not from `qc_findings`).
-- [ ] **Build-process ledger page** (standing request, 2026-08-17): surface the
-      `generations/LEDGER.md` narrative, the preserved generations/frames, and per-step costs as
-      a page on the portal — the "how this was actually built" exhibit. Media is gitignored by
-      design, so it needs a serving path (e.g. a MinIO `build-artifacts/` prefix mirroring
-      `generations/`).
+- [x] **Build-process ledger page** (standing request, 2026-08-17). Closed in ec19788 —
+      `/dashboard/ledger`, reached from a LEDGER rail item. `pnpm ledger:sync`
+      ([`scripts/sync-build-artifacts.ts`](../scripts/sync-build-artifacts.ts)) publishes
+      `generations/` into MinIO under `build-artifacts/` exactly as the item suggested, skipping
+      unchanged files by comparing MinIO's ETag to the file's MD5 so a re-run moves nothing.
+      No new service or port — MinIO was already up on its reserved 9010/9011.
+      [`lib/ledger.ts`](../lib/ledger.ts) splits the narrative into its 6 phases and 31 numbered
+      entries and renders it through `marked` (the ledger uses tables, fenced code and blockquotes,
+      which a hand-rolled parser would get subtly wrong); the trust boundary for
+      `dangerouslySetInnerHTML` is written on the function. The page lists the object store
+      directly as well as parsing references, because the prose cites whole folders far more often
+      than single files — reference-parsing alone found 5 of 23 artefacts. It dates itself from the
+      object mtime, and with nothing published it prints the sync command rather than rendering an
+      empty exhibit.
 
 ## Phase 5 — Beta hardening
 
