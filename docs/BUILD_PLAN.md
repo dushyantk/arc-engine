@@ -414,8 +414,18 @@ above, not forgotten).
       the same shot exported per-shot and via its sequence produces identical trees and
       byte-identical files apart from the two embedded timestamps. The sequence route returns 409
       with an explanation when nothing is approved rather than a valid-looking empty zip.
-- [ ] **Sessions list can't distinguish a live run from a finished one** (no running-now
-      indicator) and offers no way to start one (depends on the FastAPI run-trigger task above).
+- [x] **Sessions list can't distinguish a live run from a finished one.** Closed in ea68253.
+      Liveness is not a property of `agent_decision_log` — a running run and a finished one are
+      both just rows — so it comes from the runtime's own single-flight marker. `/runs/status`
+      reported *that* a run was active but not *which*, so it now carries `run_id`;
+      [`components/session-list.tsx`](../components/session-list.tsx) polls it every 3s, marks the
+      matching row live and banners the shot and mode with a link into the existing live view. A
+      just-started run has no logged rows yet, so the banner says so rather than looking wrong.
+      For the "no way to start one" half: a run plans against the shot's brief and cost consent
+      belongs with the shot, so the idle state lists the genuinely startable shots
+      (`getRunnableShots()` — only those with a brief, the same condition the Start run button
+      enforces) instead of a control that would dead-end. With the runtime down it says so and
+      drops the offer; the log keeps rendering, since it reads ClickHouse directly.
 - [x] **Landing page reads as an internal page, not a polished landing.** Closed in df1fbe3 —
       rebuilt as a full-bleed cold open on the real SH020 v006 frame sitting over the six-stage
       supervision loop, with the footage and the critic's own findings hung at the stage each
