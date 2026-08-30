@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Before the routers import anything that reads os.environ at module scope.
+from env import bootstrap
+
+bootstrap()
+
 from routes.runs import router as runs_router
 
 app = FastAPI(title="Dailies agent runtime")

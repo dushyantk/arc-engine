@@ -60,6 +60,7 @@ from agents.production_memory import extract_and_store_fingerprint, store_qc_fin
 from agents.revision import revise_shot
 from db.models import ReferenceAsset, Shot
 from db.postgres import Database
+from env import bootstrap
 from models.contracts import GenerationSettings, QCFinding, ShotBrief, ShotStatus
 from storage.minio_client import get_bytes, get_client, put_bytes
 from video_frames import extract_poster_frame
@@ -443,6 +444,7 @@ async def run(
 
 
 if __name__ == "__main__":
+    bootstrap()
     parser = argparse.ArgumentParser()
     parser.add_argument("--shot", required=True)
     parser.add_argument(

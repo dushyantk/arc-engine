@@ -13,6 +13,7 @@ import asyncio
 import os
 
 from db.postgres import Database
+from env import bootstrap
 from storage.minio_client import get_bytes, get_client, put_bytes
 from video_frames import extract_poster_frame
 
@@ -96,4 +97,5 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
+    bootstrap()
     raise SystemExit(asyncio.run(main()))

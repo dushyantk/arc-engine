@@ -1,30 +1,14 @@
-"""Shared fixtures. Loads the repo `.env` so a bare `pytest` works the same way
-the entrypoints are meant to, rather than only under a shell that happened to
-export the right variables.
+"""Shared fixtures. Loads the repo `.env` through the same helper the
+entrypoints use, so `pytest` sees exactly the environment a real run would.
 """
 
 import os
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from env import load_repo_env
 
-
-def _load_env() -> None:
-    env_path = REPO_ROOT / ".env"
-    if not env_path.exists():
-        return
-    for line in env_path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        # Never clobber something the caller set deliberately.
-        os.environ.setdefault(key.strip(), value.strip())
-
-
-_load_env()
+load_repo_env()
 
 
 @pytest.fixture(scope="session")
