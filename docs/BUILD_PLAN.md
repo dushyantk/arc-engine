@@ -289,9 +289,15 @@ In hierarchy order:
       uploaded file instead of being hardcoded to png. The view carries locked date and approver,
       and an unlocked reference renders dimmed behind a **NOT IN CANON** badge stating it is not
       used by any run — the consequence made visible rather than left as a silent no-op.
-- [ ] **Budget visibility at the point of consent.** Show cumulative and per-shot real spend
-      (already in `agent_decision_log`) next to every start-run button, so cost consent is
-      informed rather than a bare confirm dialog.
+- [x] **Budget visibility at the point of consent.** Closed in 0815e3d — the start-run panel shows
+      what this shot and the system have already cost, beside the estimate. Surfaced a real
+      attribution limit while building it: `agent_decision_log` anchors rows by the shot code in
+      `input_ref` and carries no show column, and codes are unique per sequence rather than
+      globally (SH010 exists in two shows). The panel therefore says "Logged against shot code
+      SH010" rather than implying it is this shot's own spend, and `getShotSpend` returns
+      `codeIsAmbiguous` so it states outright when the figure spans more than one show. Attributing
+      it exactly would need a show anchor the log does not record — worth adding when something
+      else needs it.
 
 **Beta-cut status: done.** Entity hierarchy, brief authoring, run control, and approval control —
 the four items judged the minimum for this to stop being a demo board — are all built and
@@ -438,7 +444,13 @@ above, not forgotten).
       version stores no `generation_settings` so `/runs/extract-fingerprint` short-circuits before
       Gemini whether or not the runtime is up. The export test unzips the downloaded package and
       asserts the real tree and `manifest.json`, not that a button exists.
-- [ ] Cost/latency view sourced from `agent_decision_log` (dashboard, not just raw table)
+- [x] Cost/latency view sourced from `agent_decision_log` — `/dashboard/cost` (0815e3d), reached
+      from a new COST rail item. Headline totals, the generation-vs-supervision split, spend by
+      agent, spend by model, and latency by agent. Deliberately **no spend-over-time chart**: the
+      log spans two days, so a time series would be two points; the date range is stated as text.
+      Magnitude bars use a single hue because the row label carries identity and the semantic
+      tokens are reserved for real status, and latency gets its own chart rather than a second axis
+      on spend.
 - [ ] `pnpm build` clean, FastAPI starts clean, docker-compose up clean from a fresh checkout
 - [ ] README with quickstart commands and the demo script (3-shot railway sequence, per the pitch).
       **Quickstart half done** in a892794 — the README was telling people to supply Vertex
