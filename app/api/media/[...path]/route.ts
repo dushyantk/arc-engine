@@ -25,7 +25,9 @@ export async function GET(
       ? "image/png"
       : key.endsWith(".jpg") || key.endsWith(".jpeg")
         ? "image/jpeg"
-        : "application/octet-stream";
+        : key.endsWith(".md")
+          ? "text/markdown; charset=utf-8"
+          : "application/octet-stream";
 
   const range = request.headers.get("range");
   if (range) {

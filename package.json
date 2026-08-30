@@ -15,7 +15,8 @@
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
-    "ch:migrate": "uv run --directory server python clickhouse/migrate.py"
+    "ch:migrate": "uv run --directory server python clickhouse/migrate.py",
+    "ledger:sync": "tsx --env-file=.env scripts/sync-build-artifacts.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -25,6 +26,7 @@
     "drizzle-orm": "^0.45.2",
     "jszip": "^3.10.1",
     "lucide-react": "^1.31.0",
+    "marked": "^18.0.11",
     "minio": "^8.0.7",
     "next": "16.3.1",
     "postgres": "^3.4.9",

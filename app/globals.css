@@ -138,3 +138,66 @@
     @apply font-sans;
   }
 }
+
+/*
+  Rendered markdown from the build ledger (lib/ledger.ts). Scoped to
+  .ledger-prose so it cannot reach the rest of the dashboard, and written
+  against the Lab Bench tokens rather than a typography plugin.
+*/
+.ledger-prose {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+}
+.ledger-prose > * + * { margin-top: 0.85rem; }
+.ledger-prose strong { color: var(--foreground); font-weight: 600; }
+.ledger-prose a { color: var(--primary); text-decoration: underline; }
+.ledger-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  background: var(--secondary);
+  border-radius: 2px;
+  padding: 0.05rem 0.3rem;
+}
+.ledger-prose pre {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+}
+.ledger-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.78125rem;
+  line-height: 1.6;
+}
+.ledger-prose ul, .ledger-prose ol { padding-left: 1.15rem; }
+.ledger-prose ul { list-style: disc; }
+.ledger-prose ol { list-style: decimal; }
+.ledger-prose li + li { margin-top: 0.3rem; }
+.ledger-prose blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.9rem;
+  color: var(--muted-foreground);
+}
+/* Tables carry the cost breakdowns; wide ones scroll in place rather than
+   pushing the page sideways. */
+.ledger-prose table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  font-variant-numeric: tabular-nums;
+}
+.ledger-prose th, .ledger-prose td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.75rem 0.4rem 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.ledger-prose th { color: var(--foreground); font-weight: 500; }
+.ledger-prose hr { border: 0; border-top: 1px solid var(--border); }
