@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from agents.decision_log import get_veo_pricing, new_run_id
+from agents.model_catalog import get_model_catalog
 from agents.production_memory import (
     extract_and_store_fingerprint,
     get_latest_fingerprint,
@@ -64,6 +65,17 @@ def _clear_active() -> None:
 @router.get("/status")
 def get_status() -> dict[str, dict[str, str] | None]:
     return {"active": _active}
+
+
+@router.get("/models")
+async def get_models(refresh: bool = False) -> dict[str, object]:
+    """What this key can actually reach, with our prices merged on.
+
+    Replaces reading the model list off the pricing table, which could only ever
+    offer what someone had remembered to add there. Entries carry `priced`; the
+    caller must not start a billed run on a model where that is false.
+    """
+    return await get_model_catalog(force_refresh=refresh)
 
 
 @router.get("/pricing")

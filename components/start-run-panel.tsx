@@ -26,6 +26,20 @@ const TIER_LABELS: Record<string, string> = {
   "veo-3.1-lite-generate-preview": "Lite",
 };
 
+type CatalogModel = {
+  name: string;
+  priced: boolean;
+  usd_per_second: number | null;
+  recommended: boolean;
+  preview: boolean;
+};
+
+type ModelCatalog = {
+  source: "live" | "fallback";
+  note: string | null;
+  video: CatalogModel[];
+};
+
 export type ShotSpendSummary = {
   calls: number;
   spendUsd: number;
@@ -52,22 +66,37 @@ export function StartRunPanel({
   spend?: ShotSpendSummary;
 }) {
   const router = useRouter();
-  const [pricing, setPricing] = useState<Record<string, number> | null>(null);
-  const [tier, setTier] = useState<string>("veo-3.1-generate-preview");
+  const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
+  // Distinct from "still loading": saying "asking the API" after the request
+  // already failed is the kind of small lie this product keeps arguing against.
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  // Empty until the catalogue answers: the tier is whatever the API actually
+  // offers and recommends, not a name compiled in here that may no longer exist.
+  const [tier, setTier] = useState<string>("");
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/runs/pricing")
+    fetch("/api/runs/models")
       .then((r) => r.json())
-      .then((data) => setPricing(data))
-      .catch(() => setPricing(null));
+      .then((data: ModelCatalog) => {
+        setCatalog(data);
+        const preferred =
+          data.video.find((m) => m.recommended && m.priced) ??
+          data.video.find((m) => m.priced);
+        if (preferred) setTier(preferred.name);
+      })
+      .catch(() => {
+        setCatalog(null);
+        setCatalogFailed(true);
+      });
   }, []);
 
-  const perSecond = pricing?.[tier];
-  const estimate = perSecond !== undefined ? perSecond * ASSUMED_SECONDS : null;
+  const selected = catalog?.video.find((m) => m.name === tier) ?? null;
+  const perSecond = selected?.usd_per_second ?? null;
+  const estimate = perSecond !== null ? perSecond * ASSUMED_SECONDS : null;
 
   async function handleStart() {
     setSubmitting(true);
@@ -120,31 +149,65 @@ export function StartRunPanel({
               Model tier
             </p>
             <div className="flex flex-col gap-1.5">
-              {(pricing ? Object.keys(pricing) : Object.keys(TIER_LABELS)).map(
-                (t) => (
-                  <label
-                    key={t}
-                    className="flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm has-[:checked]:border-ring has-[:checked]:bg-secondary"
-                  >
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="tier"
-                        value={t}
-                        checked={tier === t}
-                        onChange={() => setTier(t)}
-                      />
-                      {TIER_LABELS[t] ?? t}
-                    </span>
-                    {pricing?.[t] !== undefined ? (
-                      <span className="font-mono text-xs text-muted-foreground">
-                        ${(pricing[t] * ASSUMED_SECONDS).toFixed(2)} for {ASSUMED_SECONDS}s
-                      </span>
+              {catalog === null && !catalogFailed ? (
+                <p className="rounded-md border border-dashed border-border px-2.5 py-2 text-xs text-muted-foreground">
+                  Asking the API which models this key can reach…
+                </p>
+              ) : null}
+
+              {catalogFailed ? (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+                  Could not reach the agent runtime, so there is no model list and no
+                  price to consent to. Start it with{" "}
+                  <code className="font-mono">pnpm dev:api</code> and reopen this.
+                </p>
+              ) : null}
+
+              {catalog?.video.map((model) => (
+                <label
+                  key={model.name}
+                  className={`flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm has-[:checked]:border-ring has-[:checked]:bg-secondary ${
+                    model.priced ? "" : "opacity-60"
+                  }`}
+                  title={
+                    model.priced
+                      ? undefined
+                      : "No price on record for this model, so a run on it could not be costed"
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="tier"
+                      value={model.name}
+                      checked={tier === model.name}
+                      onChange={() => setTier(model.name)}
+                      // An unpriced model would bill for real and log $0.00.
+                      // Not selectable until it has a rate.
+                      disabled={!model.priced}
+                    />
+                    {TIER_LABELS[model.name] ?? model.name}
+                    {model.recommended ? (
+                      <span className="font-mono text-[10px] text-primary">DEFAULT</span>
                     ) : null}
-                  </label>
-                ),
-              )}
+                  </span>
+                  {model.priced && model.usd_per_second !== null ? (
+                    <span className="font-mono text-xs text-muted-foreground">
+                      ${(model.usd_per_second * ASSUMED_SECONDS).toFixed(2)} for{" "}
+                      {ASSUMED_SECONDS}s
+                    </span>
+                  ) : (
+                    <span className="font-mono text-xs text-warning">no price on record</span>
+                  )}
+                </label>
+              ))}
             </div>
+
+            {catalog?.source === "fallback" ? (
+              <p className="mt-1.5 font-mono text-[11px] text-warning">
+                {catalog.note ?? "Live model listing unavailable; showing known-priced models."}
+              </p>
+            ) : null}
           </div>
 
           <p className="rounded-md border border-dashed border-border px-2.5 py-2 text-xs text-muted-foreground">
@@ -196,6 +259,9 @@ export function StartRunPanel({
         <DialogFooter>
           <Button
             onClick={handleStart}
+            // estimate is null when the catalogue has not answered yet or the
+            // selected model has no rate - either way there is no informed cost
+            // to consent to, so the run cannot start.
             disabled={!confirmed || submitting || estimate === null}
           >
             {submitting ? (
