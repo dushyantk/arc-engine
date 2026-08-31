@@ -607,6 +607,39 @@ recommended first move if this is attempted before the beta release rather than 
 - [ ] Tests: contract validation and the materialisation rules (additive, refuses to clobber a
       shot with versions) — the parts where being wrong destroys work that cost money. †
 
+### Ideas taken from Rexgent (`~/dev/Rexgent`), and what they cost to adopt
+
+That project solves the same three problems (consistency, hallucination, cost) further
+along — 717 commits, 891 backend tests, CI, Alembic, deployed. Read for technique rather than
+strategy. What transfers, in value order:
+
+- [ ] **A real identity measurement.** Its `ConsistencyGuard` samples frames and scores them
+      against a locked face with an **ArcFace embedding + cosine distance**, then only calls the
+      vision model on failures, to diagnose and emit one targeted prompt change. The two-tier shape
+      is already built here (`server/agents/identity_check.py`) but the scorer is not: a flash model
+      asked to self-report similarity **passed a photograph of an empty platform as the character**,
+      twice, confabulating facial marks that were not there. ArcFace is a non-Google model and so
+      out of bounds; the compliant equivalent is **Vertex AI multimodal embeddings**, which needs
+      the Vertex credential path this project skipped. Until then the module is advisory and wired
+      to nothing. This targets the most persistent real defect here — appearance drift, which forced
+      a canon rewrite and which the critic has judged inconsistently on identical footage.
+- [ ] **A cheapest-first repair ladder.** `continuity_repair.repair_steps()` is ~37 lines of pure
+      logic, no dependencies: pick the worst-scoring component, then try `reseed` → `reanchor` →
+      `videoedit` bounded by the renders left, keeping the best result. Directly portable, and it
+      maps onto something this project now has and does not use — three Veo tiers. A failed shot
+      should retry on `lite` before it retries on `standard`.
+- [ ] **Per-run budget enforcement** (closes the item deferred under Run control). Its
+      `cost_ledger.aggregate()` returns `within_budget` and `remaining` against a project budget,
+      and `budget_estimator` projects a drama's spend *before* generating, calibrated against real
+      ledgers. This project logs cost accurately but enforces no ceiling.
+- [ ] **Deterministic pre-generation checks.** `continuity_monitor.py` is pure, no I/O, and catches
+      script-level breaks before anything is spent — repeated action across shots, no emotional
+      progression between cuts, a question answered by a people-free scenery shot. Free to run, and
+      it applies directly to 6.2's breakdown output.
+- [ ] **CI and migrations.** GitHub Actions running pytest and lint on every push; Alembic with 28
+      revisions instead of `drizzle-kit push` with no history — which has already cost two
+      hand-applied CHECK constraints in this project.
+
 ### Deliberately out of scope for a first pass
 
 Feature-length or multi-act structure (one sequence, a handful of shots); per-shot storyboard

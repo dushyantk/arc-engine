@@ -105,3 +105,35 @@ class ScriptDraft(BaseModel):
     logline: str
     synopsis: str
     scenes: list[ScriptScene] = Field(min_length=1)
+
+
+class CharacterIdentityScore(BaseModel):
+    """One character's identity match against its locked reference."""
+
+    character_name: str
+    # 0.0-1.0. Not a face embedding - see agents/identity_check.py for why this
+    # is a model's judgement rather than a cosine distance.
+    similarity: float = Field(ge=0.0, le=1.0)
+    verdict: QCVerdict
+    # Per-frame, kept rather than averaged away: a character that drifts mid-shot
+    # reads completely differently from one that was wrong in every frame, and
+    # the fix is different too.
+    frame_similarities: list[float] = Field(default_factory=list)
+    note: str
+
+
+class IdentityReport(BaseModel):
+    """Cheap first-pass identity gate over a generated version.
+
+    Deliberately separate from the critic's holistic QC: this asks one narrow,
+    repeatable question (is this the same person as the locked reference) so a
+    drift that prose judgement has historically been inconsistent about gets a
+    number attached to it.
+    """
+
+    overall_pass: bool
+    overall_similarity: float = Field(ge=0.0, le=1.0)
+    characters: list[CharacterIdentityScore] = Field(default_factory=list)
+    # Only populated on failure, by the second-tier diagnosis call.
+    diagnosis: str | None = None
+    suggested_change: str | None = None
