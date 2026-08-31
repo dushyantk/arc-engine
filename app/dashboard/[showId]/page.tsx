@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock, Plus, Unlock } from "lucide-react";
-import { getShowDetail } from "@/lib/data";
+import { getScripts, getShowDetail } from "@/lib/data";
 import { createSequence, setReferenceLock, uploadReferenceAsset } from "@/lib/actions";
 import { UploadReferenceDialog } from "@/components/upload-reference-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -31,6 +31,13 @@ export default async function ShowDetailPage({
   if (!detail) notFound();
 
   const { show, sequences, referenceAssets } = detail;
+  const scripts = await getScripts(showId);
+  const approvedScript = scripts.find((s) => s.status === "approved");
+  const scriptSummary = approvedScript
+    ? `v${approvedScript.versionNumber} approved — ${approvedScript.logline}`
+    : scripts.length > 0
+      ? `${scripts.length} draft${scripts.length === 1 ? "" : "s"}, none approved yet`
+      : "No script yet — write the idea this show is planned from";
   const createSequenceForShow = createSequence.bind(null, showId);
   const uploadReferenceForShow = uploadReferenceAsset.bind(null, showId);
 
@@ -99,6 +106,19 @@ export default async function ShowDetailPage({
           </DialogContent>
         </Dialog>
       </div>
+
+      <Link
+        href={`/dashboard/${showId}/script`}
+        className="mt-8 flex items-center justify-between gap-4 rounded-md border border-border bg-card px-4 py-3 transition-colors hover:border-ring"
+      >
+        <div>
+          <p className="font-mono text-sm font-medium">Script</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {scriptSummary}
+          </p>
+        </div>
+        <span className="font-mono text-xs text-primary">Open &rarr;</span>
+      </Link>
 
       <div className="mt-8">
         <h2 className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">

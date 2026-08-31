@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import {
   approvalEvents,
   referenceAssets,
+  scripts,
   sequences,
   shotVersions,
   shots,
@@ -587,6 +588,76 @@ export async function getLandingStats(): Promise<LandingStats> {
       totalSpendUsd > 0 ? (supervisionSpendUsd / totalSpendUsd) * 100 : 0,
     byAgent,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Scripts: the written work a show is planned from.
+
+export type ScriptWithDecisions = {
+  id: string;
+  versionNumber: number;
+  sourcePrompt: string;
+  logline: string;
+  synopsis: string;
+  body: string;
+  status: "draft" | "approved" | "superseded";
+  createdAt: Date;
+  decisions: {
+    actor: "agent" | "human";
+    decision: string;
+    reason: string | null;
+    createdAt: Date;
+  }[];
+};
+
+// Newest first: a show's current thinking is the last thing written, and older
+// versions stay readable rather than being edited away.
+export async function getScripts(showId: string): Promise<ScriptWithDecisions[]> {
+  const rows = await db
+    .select()
+    .from(scripts)
+    .where(eq(scripts.showId, showId))
+    .orderBy(desc(scripts.versionNumber));
+  if (rows.length === 0) return [];
+
+  const decisions = await db
+    .select()
+    .from(approvalEvents)
+    .where(
+      and(
+        eq(approvalEvents.subjectType, "script"),
+        inArray(
+          approvalEvents.scriptId,
+          rows.map((r) => r.id),
+        ),
+      ),
+    )
+    .orderBy(desc(approvalEvents.createdAt));
+
+  const byScript = new Map<string, ScriptWithDecisions["decisions"]>();
+  for (const event of decisions) {
+    if (!event.scriptId) continue;
+    const existing = byScript.get(event.scriptId) ?? [];
+    existing.push({
+      actor: event.actor,
+      decision: event.decision,
+      reason: event.reason,
+      createdAt: event.createdAt,
+    });
+    byScript.set(event.scriptId, existing);
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    versionNumber: row.versionNumber,
+    sourcePrompt: row.sourcePrompt,
+    logline: row.logline,
+    synopsis: row.synopsis,
+    body: row.body,
+    status: row.status,
+    createdAt: row.createdAt,
+    decisions: byScript.get(row.id) ?? [],
+  }));
 }
 
 // ---------------------------------------------------------------------------

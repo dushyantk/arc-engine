@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import {
   approvalEvents,
   referenceAssets,
+  scripts,
   sequences,
   shotVersions,
   shots,
@@ -289,4 +290,81 @@ export async function setReferenceLock(
     })
     .where(eq(referenceAssets.id, referenceId));
   revalidatePath(`/dashboard/${showId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Script control: the first stage of top-down planning.
+//
+// Writing a script is cheap and ungated - text only, cents - so a director can
+// iterate on a premise freely. The gate is approval, because that is what
+// everything expensive is planned from.
+
+const draftScriptSchema = z.object({
+  idea: z.string().trim().min(1, "Describe the idea to write from").max(4000),
+});
+
+export async function draftScript(showId: string, formData: FormData) {
+  const parsed = draftScriptSchema.parse({ idea: formData.get("idea") });
+
+  const { status, body } = await callRuntime("/scripts/draft", {
+    method: "POST",
+    body: JSON.stringify({ show_id: showId, idea: parsed.idea }),
+  });
+
+  if (status < 200 || status >= 300) {
+    const detail =
+      body && typeof body === "object" && "detail" in body
+        ? String((body as { detail: unknown }).detail)
+        : "The agent runtime could not write a script.";
+    throw new Error(detail);
+  }
+
+  revalidatePath(`/dashboard/${showId}/script`);
+}
+
+const scriptApprovalSchema = z
+  .object({
+    decision: z.enum(["approved", "rejected"]),
+    reason: z.string().trim().max(2000).optional(),
+  })
+  .refine((data) => data.decision === "approved" || !!data.reason, {
+    message: "A reason is required when rejecting.",
+    path: ["reason"],
+  });
+
+export async function submitScriptApproval(
+  showId: string,
+  scriptId: string,
+  formData: FormData,
+) {
+  const parsed = scriptApprovalSchema.parse({
+    decision: formData.get("decision"),
+    reason: formData.get("reason") || undefined,
+  });
+
+  if (parsed.decision === "approved") {
+    // One approved script per show at a time: approving this one supersedes
+    // whatever was approved before, rather than leaving two live scripts and
+    // no way to say which a breakdown should be made from.
+    await db
+      .update(scripts)
+      .set({ status: "superseded" })
+      .where(and(eq(scripts.showId, showId), eq(scripts.status, "approved")));
+    await db.update(scripts).set({ status: "approved" }).where(eq(scripts.id, scriptId));
+  } else {
+    // A rejected draft is out of the running, but kept - the reason is on the
+    // record and the text stays readable.
+    await db.update(scripts).set({ status: "superseded" }).where(eq(scripts.id, scriptId));
+  }
+
+  await db.insert(approvalEvents).values({
+    subjectType: "script",
+    scriptId,
+    actor: "human",
+    decision: parsed.decision,
+    reason: parsed.reason ?? null,
+  });
+
+  revalidatePath(`/dashboard/${showId}/script`);
+  redirect(`/dashboard/${showId}/script`);
 }
