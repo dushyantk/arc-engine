@@ -524,14 +524,26 @@ recommended first move if this is attempted before the beta release rather than 
 
 ### 6.0 — Settle before building
 
-- [ ] **Generalise `approval_events`, or decide not to.** It is hard-scoped to shots today:
-      `shot_id` and `shot_version_id` are both `NOT NULL`, so a script approval cannot reuse it.
-      Widen to `(subject_type, subject_id)` — keeping one audit trail and one human-veto path —
-      or add a parallel table. A schema call to make deliberately, not mid-build. †
-- [ ] **Pick the image model and price it.** `agents/decision_log.py` prices tokens and Veo
-      per-second only, so asset sheets are a new billed class. Needs a pricing entry, its own
-      `agent_decision_log` rows, and the same cost-consent gate as a Veo run — otherwise
-      `/dashboard/cost` silently under-reports the real bill.
+- [x] **Generalise `approval_events`.** Done in 7662675 — widened, not given a second table, so
+      there stays one audit trail and one human-veto path. Not an untyped
+      `(subject_type, subject_id)` pair either: that trades real foreign keys for a column that can
+      dangle, and would break the delete-cascade the e2e fixtures rely on. It is an **exclusive
+      arc** — `subject_type` says what the decision is about, target columns stay real FKs with
+      real cascades, and a CHECK constraint requires exactly the columns that subject needs.
+      Scripts and breakdowns extend the enum, add their own FK, and extend the check.
+      `subject_type` has a default only so the 21 existing rows could be classified in place; every
+      caller states it explicitly, and the check rejects a subject that forgets. Verified live: all
+      21 rows classified, a malformed row rejected by the constraint, a well-formed one still
+      inserting. †
+- [ ] **Pick the image model and price it.** Model availability checked live against the API on
+      2026-08-30: **no Imagen on this key** — image generation is Gemini image models via
+      `generateContent` (`gemini-3-pro-image`, `gemini-3.1-flash-image`,
+      `gemini-3.1-flash-lite-image`, `gemini-2.5-flash-image`, plus `-preview` variants), which is
+      the same call shape as the planner and critic rather than Veo's long-running poll. All three
+      Veo tiers are already priced, including `veo-3.1-lite-generate-preview`; **the image models
+      are not**, so an asset sheet would log $0.00 today and `/dashboard/cost` would under-report.
+      Needs a pricing entry, its own `agent_decision_log` rows, and the same cost-consent gate as
+      a Veo run.
 
 ### 6.1 — Idea to script
 
