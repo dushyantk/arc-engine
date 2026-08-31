@@ -90,3 +90,20 @@ export const revisionInstructionSchema = z.object({
   reason: z.string(),
 });
 export type RevisionInstruction = z.infer<typeof revisionInstructionSchema>;
+
+/** Story agent output: an idea prompt expanded into something a breakdown can
+ *  be made from. Deliberately small — a logline to check the premise against, a
+ *  synopsis to read, and scenes carrying the action a shot list comes from. */
+export const scriptSceneSchema = z.object({
+  heading: z.string(),
+  action: z.string(),
+  beats: z.array(z.string()).default([]),
+});
+export type ScriptScene = z.infer<typeof scriptSceneSchema>;
+
+export const scriptDraftSchema = z.object({
+  logline: z.string(),
+  synopsis: z.string(),
+  scenes: z.array(scriptSceneSchema).min(1),
+});
+export type ScriptDraft = z.infer<typeof scriptDraftSchema>;

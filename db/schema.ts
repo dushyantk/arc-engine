@@ -119,14 +119,35 @@ export const referenceAssets = pgTable("reference_assets", {
   approvedBy: text("approved_by"),
 });
 
-// What an approval is *about*. Shot versions are the only subject today; the
-// planning work adds scripts and breakdowns, which are not shots and so could
-// not be recorded at all while this table required a shot on every row.
+export const scriptStatus = pgEnum("script_status", ["draft", "approved", "superseded"]);
+
+// The written work a show is planned from. Versioned like shot_versions: a
+// second pass is a new row, never an edit, so the script a breakdown was made
+// from stays readable after the script moves on.
+export const scripts = pgTable("scripts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  showId: uuid("show_id")
+    .notNull()
+    .references(() => shows.id, { onDelete: "cascade" }),
+  versionNumber: integer("version_number").notNull(),
+  // The operator's own words. Kept separate from the generated text so the
+  // human intent behind a script is recoverable, the same way brief_used
+  // stamps what actually drove a generation.
+  sourcePrompt: text("source_prompt").notNull(),
+  logline: text("logline").notNull(),
+  synopsis: text("synopsis").notNull(),
+  body: text("body").notNull(),
+  status: scriptStatus("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// What an approval is *about*. Shot versions were the only subject; scripts are
+// not shots, which is why this table had to stop requiring one on every row.
 //
 // Widened rather than given a second table on purpose: one audit trail and one
 // human-veto path is the product's own claim, and two tables would mean any
 // "every decision on record" view has to stitch them together.
-export const approvalSubject = pgEnum("approval_subject", ["shot_version"]);
+export const approvalSubject = pgEnum("approval_subject", ["shot_version", "script"]);
 
 export const approvalEvents = pgTable(
   "approval_events",
@@ -145,6 +166,7 @@ export const approvalEvents = pgTable(
     shotVersionId: uuid("shot_version_id").references(() => shotVersions.id, {
       onDelete: "cascade",
     }),
+    scriptId: uuid("script_id").references(() => scripts.id, { onDelete: "cascade" }),
     actor: approvalActor("actor").notNull(),
     decision: text("decision").notNull(),
     reason: text("reason"),
@@ -156,8 +178,9 @@ export const approvalEvents = pgTable(
     // scripts and breakdowns become subjects.
     check(
       "approval_events_subject_target",
-      sql`${table.subjectType} <> 'shot_version'
-          OR (${table.shotId} IS NOT NULL AND ${table.shotVersionId} IS NOT NULL)`,
+      sql`(${table.subjectType} <> 'shot_version'
+           OR (${table.shotId} IS NOT NULL AND ${table.shotVersionId} IS NOT NULL))
+          AND (${table.subjectType} <> 'script' OR ${table.scriptId} IS NOT NULL)`,
     ),
   ],
 );

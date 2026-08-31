@@ -65,7 +65,8 @@ class ReferenceAsset(BaseModel):
     approved_by: str | None
 
 
-ApprovalSubject = Literal["shot_version"]
+ApprovalSubject = Literal["shot_version", "script"]
+ScriptStatus = Literal["draft", "approved", "superseded"]
 
 
 class ApprovalEvent(BaseModel):
@@ -75,7 +76,20 @@ class ApprovalEvent(BaseModel):
     subject_type: ApprovalSubject
     shot_id: UUID | None
     shot_version_id: UUID | None
+    script_id: UUID | None
     actor: ApprovalActor
     decision: str
     reason: str | None
+    created_at: datetime
+
+
+class Script(BaseModel):
+    id: UUID
+    show_id: UUID
+    version_number: int
+    source_prompt: str
+    logline: str
+    synopsis: str
+    body: str
+    status: ScriptStatus
     created_at: datetime

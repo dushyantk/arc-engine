@@ -14,7 +14,10 @@ from uuid import uuid4
 
 import clickhouse_connect
 
-AgentName = str  # "planner" | "generation_adapter" | "critic" | "revision_agent" | "approval_gate" | "continuity_agent"
+# Must match the Enum8 in clickhouse/schema.sql exactly: an unlisted value is
+# silently coerced to NULL on insert rather than rejected, which has already
+# cost one debugging session (see the continuity agent, BUILD_PLAN Audit).
+AgentName = str  # planner | generation_adapter | critic | revision_agent | approval_gate | continuity_agent | story_agent
 
 # USD per 1M tokens: (input, output). Approximate, standard (non-batch) tier.
 _TOKEN_PRICING: dict[str, tuple[float, float]] = {

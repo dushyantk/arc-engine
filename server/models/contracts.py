@@ -86,3 +86,22 @@ class RevisionInstruction(BaseModel):
     preserve_elements: list[str]
     revised_prompt: str
     reason: str
+
+
+class ScriptScene(BaseModel):
+    """One scene of a draft: a slugline, what happens, and the beats a shot
+    list is cut from."""
+
+    heading: str
+    action: str
+    beats: list[str] = Field(default_factory=list)
+
+
+class ScriptDraft(BaseModel):
+    """Story agent output. Deliberately small - a logline to check the premise
+    against, a synopsis to read, and scenes carrying the action a breakdown
+    turns into shots. Anything richer is a later pass, not this contract."""
+
+    logline: str
+    synopsis: str
+    scenes: list[ScriptScene] = Field(min_length=1)

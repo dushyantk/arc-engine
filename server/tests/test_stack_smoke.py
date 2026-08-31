@@ -133,6 +133,7 @@ class TestClickHouse:
             "revision_agent",
             "approval_gate",
             "continuity_agent",
+            "story_agent",
         ):
             assert f"'{agent}'" in out, f"{agent} missing from agent_name enum"
 

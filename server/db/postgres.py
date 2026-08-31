@@ -14,7 +14,15 @@ from uuid import UUID
 
 import asyncpg
 
-from db.models import ApprovalEvent, ReferenceAsset, Sequence, Shot, ShotVersion, Show
+from db.models import (
+    ApprovalEvent,
+    ReferenceAsset,
+    Script,
+    Sequence,
+    Shot,
+    ShotVersion,
+    Show,
+)
 
 
 async def _init_connection(conn: asyncpg.Connection) -> None:
@@ -163,6 +171,43 @@ class Database:
         )
         assert row is not None
         return ReferenceAsset(**dict(row))
+
+    async def get_scripts(self, show_id: UUID) -> list[Script]:
+        rows = await self.pool.fetch(
+            "SELECT * FROM scripts WHERE show_id = $1 ORDER BY version_number DESC", show_id
+        )
+        return [Script(**dict(r)) for r in rows]
+
+    async def insert_script(
+        self,
+        *,
+        show_id: UUID,
+        source_prompt: str,
+        logline: str,
+        synopsis: str,
+        body: str,
+    ) -> Script:
+        """Always a new version, never an edit - the script a breakdown was made
+        from has to stay readable after the script moves on."""
+        row = await self.pool.fetchrow(
+            """
+            INSERT INTO scripts
+                (show_id, version_number, source_prompt, logline, synopsis, body, status)
+            VALUES (
+                $1,
+                (SELECT coalesce(max(version_number), 0) + 1 FROM scripts WHERE show_id = $1),
+                $2, $3, $4, $5, 'draft'
+            )
+            RETURNING *
+            """,
+            show_id,
+            source_prompt,
+            logline,
+            synopsis,
+            body,
+        )
+        assert row is not None
+        return Script(**dict(row))
 
     async def get_shot_versions(self, shot_id: UUID) -> list[ShotVersion]:
         rows = await self.pool.fetch(
