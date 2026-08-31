@@ -613,16 +613,30 @@ That project solves the same three problems (consistency, hallucination, cost) f
 along — 717 commits, 891 backend tests, CI, Alembic, deployed. Read for technique rather than
 strategy. What transfers, in value order:
 
-- [ ] **A real identity measurement.** Its `ConsistencyGuard` samples frames and scores them
-      against a locked face with an **ArcFace embedding + cosine distance**, then only calls the
-      vision model on failures, to diagnose and emit one targeted prompt change. The two-tier shape
-      is already built here (`server/agents/identity_check.py`) but the scorer is not: a flash model
-      asked to self-report similarity **passed a photograph of an empty platform as the character**,
-      twice, confabulating facial marks that were not there. ArcFace is a non-Google model and so
-      out of bounds; the compliant equivalent is **Vertex AI multimodal embeddings**, which needs
-      the Vertex credential path this project skipped. Until then the module is advisory and wired
-      to nothing. This targets the most persistent real defect here — appearance drift, which forced
-      a canon rewrite and which the critic has judged inconsistently on identical footage.
+- [ ] **Split continuity axes by what kind of question each one is.** The single best idea there,
+      and the one this project does not have. Its `ContinuityAgent` scores **face with an ArcFace
+      embedding** (a measurement — never a language model) and **outfit and background with a vision
+      model** (judgements), combined 0.5 / 0.25 / 0.25 and re-normalised when an axis is
+      unavailable. This project asks one model for prose verdicts on all seven axes equally, which
+      is why identity has been its least reliable finding: it is the one axis that is a measurement
+      question. The compliant measurement is **Vertex AI multimodal embeddings**, needing the Vertex
+      credential path skipped in ARCHITECTURE.md section 6.
+- [ ] **Suppress an axis when the framing makes it meaningless.** `outfit_scoring_applies()` returns
+      False on CU/ECU/OTS framings, because an over-the-shoulder shows a back — their comment
+      records one such shot scoring outfit 0.1 and dragging a good take down to 40. This project's
+      critic scores `hero_prop` and `screen_direction` on shots where neither is visible, which is
+      the same defect uncaught.
+- [ ] **Calibrate a raw similarity before treating it as confidence.** A genuine same-person ArcFace
+      pair only clears ~0.35; read raw as "35/100" every real match fails. They map it through a
+      curve so the genuine threshold lands at 0.75. Any measurement adopted here needs the same
+      treatment — `server/agents/identity_check.py` used a flat 0.6 cutoff and was wrong to.
+- [x] **Attempted directly and got it wrong — recorded in `server/agents/identity_check.py`.**
+      Ported the MCP-exposed `ConsistencyGuard` rather than the pipeline's real `ContinuityAgent`,
+      and asked a flash model for the identity number, which is precisely what that design never
+      does. The "it scored 0.98 on a photograph of an empty platform" result proved nothing about
+      VLM-vs-embedding: there a non-face reference never reaches the scorer, because ArcFace
+      returns no vector and the character is flagged unverifiable. Left advisory and wired to
+      nothing; the mistakes are documented in the module.
 - [ ] **A cheapest-first repair ladder.** `continuity_repair.repair_steps()` is ~37 lines of pure
       logic, no dependencies: pick the worst-scoring component, then try `reseed` → `reanchor` →
       `videoedit` bounded by the renders left, keeping the best result. Directly portable, and it

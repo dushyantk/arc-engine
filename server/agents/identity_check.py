@@ -1,41 +1,46 @@
-"""Identity scoring against a locked character reference - NOT WIRED INTO THE
-APPROVAL PATH, and the reason is the point of this file.
+"""Identity scoring against a locked character reference - ADVISORY, wired to
+nothing, and kept mainly for what building it wrong taught.
 
-The design is borrowed from a sibling project (Rexgent's ConsistencyGuard): score
-cheaply first, and spend the expensive reasoning model only on failures, where it
-diagnoses *why* and names one concrete prompt change. That two-tier shape is
-sound and worth having.
+The design was lifted from a sibling project (Rexgent) after seeing its
+MCP-exposed `ConsistencyGuard`. Reading how that project actually *applies* it
+afterwards showed the port was wrong in ways worth writing down, because the
+mistakes are the useful part.
 
-What could not be borrowed is the scorer. That project locks identity with a
-local ArcFace embedding and a cosine distance. This project may only use Google
-AI tools, so the substitution attempted here was a flash model asked to judge
-similarity against the reference image and return a number.
+What that project really runs in its generation loop is `ContinuityAgent`, not
+the MCP tool, and it is a hybrid that splits axes by what kind of question each
+one is:
 
-That substitution does not work, and was measured rather than assumed. Handed a
-photograph of an empty railway platform as the "Maya" reference, against real
-SH030 v5 footage:
+  face       -> ArcFace embedding, a measurement. Never a language model.
+  outfit     -> vision model, a judgement.
+  background -> vision model, a judgement.
 
-  - first prompt:  0.98 PASS, and it confabulated "dark wet hair" and a "right
-    cheek facial mark" in a picture of a station platform
-  - de-primed prompt (neutral labels, an explicit "if the reference is not a
-    face, fail" instruction): 0.73 PASS, frame scores finally varying, and the
-    same confabulation with the mark now on the *left* cheek
+combined 0.5 / 0.25 / 0.25, re-normalised when an axis is unavailable, against a
+threshold of 55/100 - and an axis is *suppressed* when the framing makes it
+meaningless (no outfit score on CU/ECU/OTS, because an over-the-shoulder shows a
+back; their comment records one dragging a good shot down to 40). Raw cosine is
+also run through a calibration curve first, since a genuine same-person ArcFace
+pair only clears ~0.35 and reading that raw as "35/100" would fail every real
+match.
 
-It is scoring whether the generated frames are consistent with each other, not
-whether they match the reference, and it will rationalise agreement with
-whatever it is told the reference is. A gate that passes an empty plate is worse
-than no gate: it launders an unverified shot as verified.
+This module asked a language model for the identity number - the one thing that
+design deliberately never does. So the earlier note here, that a flash model
+"scored 0.98 on a photograph of an empty platform", measured nothing about
+whether a VLM can substitute for an embedding: in that project a non-face
+reference never reaches the scorer, because ArcFace returns no vector and the
+character is flagged unverifiable instead. The test exercised a path that cannot
+occur there. It was a bad test of a design I had already mis-copied.
 
-So nothing here calls this. It stays because everything except the scorer is
-right - frame sampling, the contract, the two-tier structure, the diagnosis call
-that produces a targeted prompt change - and because the finding is worth
-keeping.
+Ways the port was wrong, for the next person: ported the MCP tool rather than the
+pipeline's real agent; no input validation, so a non-face reference was scored at
+all; one axis instead of a weighted composite; a flat 0.6 cutoff instead of a
+calibration curve; a hard gate instead of advisory NEEDS_REVIEW feeding a
+budget-gated repair ladder; and no scoping to who is actually in frame, which
+that project passes as characters_in_frame / foreground_characters / shot_type.
 
-The real fix is a genuine measurement, and there is a compliant one: Vertex AI
-multimodal embeddings give an actual image vector and a cosine distance, which
-cannot be talked into agreeing. That needs the Vertex credential path this
-project deliberately skipped (ARCHITECTURE.md section 6), so it is filed as a
-build-plan task rather than done here.
+What stands regardless: identity wants a measurement, not a judgement. The
+compliant one here is Vertex AI multimodal embeddings, which needs the Vertex
+credential path this project skipped (ARCHITECTURE.md section 6). Until that
+exists this stays advisory and calls nothing.
 """
 
 import time
