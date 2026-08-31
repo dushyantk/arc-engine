@@ -143,6 +143,7 @@ async function main() {
     })
     .returning();
   await db.insert(approvalEvents).values({
+    subjectType: "shot_version",
     shotId: sh020.id,
     shotVersionId: sh020v1.id,
     actor: "agent",
@@ -163,6 +164,7 @@ async function main() {
     })
     .returning();
   await db.insert(approvalEvents).values({
+    subjectType: "shot_version",
     shotId: sh020.id,
     shotVersionId: sh020v2.id,
     actor: "agent",
@@ -183,6 +185,7 @@ async function main() {
     })
     .returning();
   await db.insert(approvalEvents).values({
+    subjectType: "shot_version",
     shotId: sh030.id,
     shotVersionId: sh030v1.id,
     actor: "agent",
@@ -203,6 +206,7 @@ async function main() {
     })
     .returning();
   await db.insert(approvalEvents).values({
+    subjectType: "shot_version",
     shotId: sh030.id,
     shotVersionId: sh030v2.id,
     actor: "agent",

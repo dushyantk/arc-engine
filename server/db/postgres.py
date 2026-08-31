@@ -247,8 +247,9 @@ class Database:
     ) -> ApprovalEvent:
         row = await self.pool.fetchrow(
             """
-            INSERT INTO approval_events (shot_id, shot_version_id, actor, decision, reason)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO approval_events
+                (subject_type, shot_id, shot_version_id, actor, decision, reason)
+            VALUES ('shot_version', $1, $2, $3, $4, $5)
             RETURNING *
             """,
             shot_id,

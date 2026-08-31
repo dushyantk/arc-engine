@@ -65,10 +65,16 @@ class ReferenceAsset(BaseModel):
     approved_by: str | None
 
 
+ApprovalSubject = Literal["shot_version"]
+
+
 class ApprovalEvent(BaseModel):
     id: UUID
-    shot_id: UUID
-    shot_version_id: UUID
+    # What the decision was about. Shot versions are the only subject today;
+    # the shot columns are nullable because a script approval will have neither.
+    subject_type: ApprovalSubject
+    shot_id: UUID | None
+    shot_version_id: UUID | None
     actor: ApprovalActor
     decision: str
     reason: str | None

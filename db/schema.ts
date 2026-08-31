@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  check,
   jsonb,
   pgEnum,
   pgTable,
@@ -118,16 +119,45 @@ export const referenceAssets = pgTable("reference_assets", {
   approvedBy: text("approved_by"),
 });
 
-export const approvalEvents = pgTable("approval_events", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  shotId: uuid("shot_id")
-    .notNull()
-    .references(() => shots.id, { onDelete: "cascade" }),
-  shotVersionId: uuid("shot_version_id")
-    .notNull()
-    .references(() => shotVersions.id, { onDelete: "cascade" }),
-  actor: approvalActor("actor").notNull(),
-  decision: text("decision").notNull(),
-  reason: text("reason"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// What an approval is *about*. Shot versions are the only subject today; the
+// planning work adds scripts and breakdowns, which are not shots and so could
+// not be recorded at all while this table required a shot on every row.
+//
+// Widened rather than given a second table on purpose: one audit trail and one
+// human-veto path is the product's own claim, and two tables would mean any
+// "every decision on record" view has to stitch them together.
+export const approvalSubject = pgEnum("approval_subject", ["shot_version"]);
+
+export const approvalEvents = pgTable(
+  "approval_events",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    // The default exists so the existing rows could be classified in place; it
+    // is not licence to omit it. A new subject type that forgets to set this
+    // gets 'shot_version' with no shot attached, and the check below rejects
+    // the row rather than filing it under the wrong thing.
+    subjectType: approvalSubject("subject_type").notNull().default("shot_version"),
+    // Nullable now, but still real foreign keys with real cascades - an
+    // exclusive arc rather than an untyped (subject_type, subject_id) pair, so
+    // deleting a shot still takes its approvals with it and nothing can point
+    // at a row that does not exist.
+    shotId: uuid("shot_id").references(() => shots.id, { onDelete: "cascade" }),
+    shotVersionId: uuid("shot_version_id").references(() => shotVersions.id, {
+      onDelete: "cascade",
+    }),
+    actor: approvalActor("actor").notNull(),
+    decision: text("decision").notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Exactly the columns its subject requires, enforced by the database rather
+    // than by every caller remembering. Extend this alongside the enum when
+    // scripts and breakdowns become subjects.
+    check(
+      "approval_events_subject_target",
+      sql`${table.subjectType} <> 'shot_version'
+          OR (${table.shotId} IS NOT NULL AND ${table.shotVersionId} IS NOT NULL)`,
+    ),
+  ],
+);

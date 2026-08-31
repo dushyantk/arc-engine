@@ -168,6 +168,7 @@ export async function submitHumanApproval(
 
   await db.update(shots).set({ status: shotStatus }).where(eq(shots.id, shotId));
   await db.insert(approvalEvents).values({
+    subjectType: "shot_version",
     shotId,
     shotVersionId,
     actor: "human",

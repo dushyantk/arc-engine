@@ -376,8 +376,12 @@ export async function getShotDetail(
     .where(eq(approvalEvents.shotId, shot.id))
     .orderBy(desc(approvalEvents.createdAt));
 
+  // shotVersionId is nullable now that approval_events can record decisions
+  // about things that are not shot versions. Anything without one belongs to a
+  // different subject and has no place in a per-version grouping.
   const eventsByVersion = new Map<string, typeof events>();
   for (const event of events) {
+    if (!event.shotVersionId) continue;
     const existing = eventsByVersion.get(event.shotVersionId) ?? [];
     existing.push(event);
     eventsByVersion.set(event.shotVersionId, existing);
