@@ -547,16 +547,24 @@ recommended first move if this is attempted before the beta release rather than 
 
 ### 6.1 — Idea to script
 
-- [ ] `scripts` table: `(id, show_id, version_number, source_prompt, logline, synopsis, body,
-      status: draft | approved | superseded, created_at)`. Versioned like `shot_versions` — a
-      second pass is a new row, never an edit, so the script that produced a breakdown stays
-      readable after the script moves on. Drizzle + `server/db/models.py` mirror. †
-- [ ] `ScriptDraft` contract — `{ logline, synopsis, scenes: [{ heading, action, beats[] }] }`,
-      Zod and Pydantic, malformed output a hard stop like every other agent. †
-- [ ] Story agent (`server/agents/story.py`): idea prompt → `ScriptDraft`, logged to
-      `agent_decision_log` with real cost. Text-only, cheap. †
-- [ ] Script UI: author the idea prompt, read the draft, approve or reject with a reason —
-      the same recorded-decision discipline as version approval. †
+- [x] `scripts` table — done in 53919b4, versioned like `shot_versions`, with `source_prompt`
+      kept separate from the generated text so the human intent stays recoverable. Drizzle +
+      `server/db/models.py` mirror. †
+- [x] `ScriptDraft` contract — done in 53919b4, Zod and Pydantic mirrors, malformed output a hard
+      stop matching `critic.py`. †
+- [x] Story agent ([`server/agents/story.py`](../server/agents/story.py)) — done in 53919b4.
+      Deliberately *not* given the continuity state the planner queries: a script is written
+      before there is anything to be continuous with. Its system prompt carries the one
+      instruction the rest of the pipeline depends on — name recurring physical things identically
+      every time, since those names become the continuity references. Verified with a real call:
+      26s, $0.008992, logged as `story_agent`. Required extending the ClickHouse `agent_name`
+      Enum8 first, since an unlisted value coerces to NULL rather than failing. †
+- [x] Script UI — done in a5997e1 at `/dashboard/[showId]/script`, linked and summarised from the
+      show page. Writing is ungated and says so; approval is the gate. Approving supersedes the
+      previously approved script (one per show is planned from at a time) and the form says which
+      version that is *before* the click. First real use of the widened `approval_events`: the row
+      lands with `subject_type='script'` and no shot attached. Verified by driving the actual UI —
+      empty state, real draft, approve, decision on the record, no page errors. †
 
 ### 6.2 — Script to breakdown to real entities
 
