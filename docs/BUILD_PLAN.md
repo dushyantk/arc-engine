@@ -507,87 +507,90 @@ not a filmmaking system. The pitch ("making it belong in the movie") is stronges
 owns the movie, because then the continuity bible is derived from the script rather than asserted
 shot by shot.
 
-Target pipeline, with the existing per-shot loop as its last stage:
-
 ```
 idea prompt → script → [approve] → breakdown → [approve] → materialise entities
                                                               ↓
                                     asset sheets → [lock as canon] → per-shot loop (existing)
 ```
 
-### Domain model
+**The whole design rests on one seam: `shots.brief`.** The breakdown agent writes the briefs the
+existing planner already consumes, so nothing downstream of a shot changes. New work bolts on in
+front of the existing loop rather than through it.
 
-- **`scripts`** — `(id, show_id, version_number, source_prompt, logline, synopsis, body,
-  status: draft | approved | superseded, created_at)`. Versioned exactly like `shot_versions`:
-  a second pass is a new row, never an edit, so the script that produced a breakdown stays
-  readable after the script moves on.
-- **`breakdowns`** — `(id, script_id, version_number, payload jsonb, status, created_at)`. The
-  structured decomposition, kept as its own artifact rather than only as its effects, so
-  "why does this shot exist" has an answer.
-- **`reference_assets`** gains `source: uploaded | generated`, plus `generated_from_breakdown_id`
-  and `generation_prompt`. A generated character sheet must be as traceable as a generated shot.
-- **`shots`** gains `created_from_breakdown_id`, so a shot's existence has provenance the same way
-  its footage does.
-- **`approval_events` needs generalising first.** It is hard-scoped to shots today —
-  `shot_id` and `shot_version_id` are both `NOT NULL` — so a script approval cannot reuse it.
-  Either widen it to `(subject_type, subject_id)` or add a parallel table. Widening keeps one
-  audit trail and one human-veto path; decide before building, not during.
+**Thin slice (†)** — tasks marked † are script → breakdown → materialise, text only. That subset
+adds no new billed call class, needs no image model, and still turns the demo from "watch it
+supervise a shot" into "watch an idea become a shot list the system then executes". It is the
+recommended first move if this is attempted before the beta release rather than after it.
 
-### Contracts (Zod + Pydantic mirrors, as everywhere else)
+### 6.0 — Settle before building
 
-- `ScriptDraft` — `{ logline, synopsis, scenes: [{ heading, action, beats[] }] }`
-- `SceneBreakdown` — `{ sequences: [{ code, description, shots: [{ code, order_index,
-  screen_direction, brief }] }], assets: [{ type, name, description, why_needed }] }`
-- `AssetSheetSpec` — `{ asset_type, name, prompt, views[] }`
+- [ ] **Generalise `approval_events`, or decide not to.** It is hard-scoped to shots today:
+      `shot_id` and `shot_version_id` are both `NOT NULL`, so a script approval cannot reuse it.
+      Widen to `(subject_type, subject_id)` — keeping one audit trail and one human-veto path —
+      or add a parallel table. A schema call to make deliberately, not mid-build. †
+- [ ] **Pick the image model and price it.** `agents/decision_log.py` prices tokens and Veo
+      per-second only, so asset sheets are a new billed class. Needs a pricing entry, its own
+      `agent_decision_log` rows, and the same cost-consent gate as a Veo run — otherwise
+      `/dashboard/cost` silently under-reports the real bill.
 
-### Agents
+### 6.1 — Idea to script
 
-1. **Story agent** — idea prompt → `ScriptDraft`. Cheap, text-only.
-2. **Breakdown agent** — approved script → `SceneBreakdown`. Must produce the shot briefs the
-   existing planner already consumes, so the seam between new and existing work is exactly
-   `shots.brief` and nothing else changes downstream.
-3. **Asset-sheet agent** — `AssetSheetSpec` → a real character/environment sheet image, landing as
-   an **unlocked** `reference_assets` row.
+- [ ] `scripts` table: `(id, show_id, version_number, source_prompt, logline, synopsis, body,
+      status: draft | approved | superseded, created_at)`. Versioned like `shot_versions` — a
+      second pass is a new row, never an edit, so the script that produced a breakdown stays
+      readable after the script moves on. Drizzle + `server/db/models.py` mirror. †
+- [ ] `ScriptDraft` contract — `{ logline, synopsis, scenes: [{ heading, action, beats[] }] }`,
+      Zod and Pydantic, malformed output a hard stop like every other agent. †
+- [ ] Story agent (`server/agents/story.py`): idea prompt → `ScriptDraft`, logged to
+      `agent_decision_log` with real cost. Text-only, cheap. †
+- [ ] Script UI: author the idea prompt, read the draft, approve or reject with a reason —
+      the same recorded-decision discipline as version approval. †
 
-### Where the approval gates go, and why there
+### 6.2 — Script to breakdown to real entities
 
-- **After the script**, because everything downstream is derived from it and the breakdown is the
-  first step that spends anything at scale.
-- **After the breakdown**, because materialising writes real sequences and shots.
-- **On each asset sheet — using the lock verb that already exists.** A generated sheet arrives
-  unlocked, therefore invisible to the planner and the generation adapter (`get_reference_assets()`
-  selects `WHERE locked_at IS NOT NULL`). Locking it is the operator saying "this is canon". No new
-  approval concept is needed for assets; the one built in d276b52 already means precisely this.
+- [ ] `breakdowns` table: `(id, script_id, version_number, payload jsonb, status, created_at)`.
+      Kept as its own artifact rather than only as its effects, so "why does this shot exist" has
+      an answer. †
+- [ ] `SceneBreakdown` contract — `{ sequences: [{ code, description, shots: [{ code,
+      order_index, screen_direction, brief }] }], assets: [{ type, name, description,
+      why_needed }] }`. †
+- [ ] Breakdown agent (`server/agents/breakdown.py`): approved script → `SceneBreakdown`,
+      producing briefs in the shape the planner already reads. †
+- [ ] Breakdown review UI: see the proposed sequences, shots and assets **before** anything is
+      written, then approve. Materialising creates real rows, so it needs its own gate. †
+- [ ] **Materialisation — transactional, additive, and non-destructive.** A re-breakdown after a
+      script revision diffs against what exists and **refuses to touch any shot that already has
+      versions**: real spend is not collateral damage of a re-plan. Destructive changes only on an
+      explicit, itemised confirmation. †
+- [ ] `shots.created_from_breakdown_id` — a shot's existence gets provenance, the same way its
+      footage already does. †
 
-### Rules that must hold
+### 6.3 — Asset sheets
 
-- **Materialisation is transactional, and never clobbers work that cost money.** A re-breakdown
-  after script v2 diffs against what exists and refuses to touch any shot that already has
-  versions — real spend is not collateral damage of a re-plan. Additive by default; destructive
-  only on an explicit, itemised confirmation.
-- **Image generation is a new billed class.** `agents/decision_log.py` prices tokens and Veo
-  per-second only. Asset sheets need their own pricing entry, their own `agent_decision_log`
-  rows, and the same cost-consent discipline as a Veo run — otherwise the cost page silently
-  under-reports the bill.
-- Malformed agent output is a hard stop, as everywhere else in the chain.
-- Every step logs to `agent_decision_log`, so the cost page keeps meaning what it says.
+- [ ] `reference_assets` gains `source: uploaded | generated`, `generated_from_breakdown_id`,
+      `generation_prompt`. A generated character sheet must be as traceable as a generated shot.
+- [ ] `AssetSheetSpec` contract — `{ asset_type, name, prompt, views[] }`.
+- [ ] Asset-sheet agent (`server/agents/asset_sheet.py`): spec → a real character or environment
+      sheet image, stored in MinIO, landing as an **unlocked** `reference_assets` row.
+- [ ] Cost consent before generating sheets, matching the Veo run gate.
+- [ ] **No new approval concept for assets.** A sheet arrives unlocked and is therefore already
+      invisible to the planner and generation adapter — `get_reference_assets()` selects
+      `WHERE locked_at IS NOT NULL`. The lock verb built in d276b52 *is* the canon gate; wiring is
+      confirming that, not building it.
+
+### 6.4 — Prove the chain
+
+- [ ] End-to-end on a throwaway show: idea prompt → approved script → breakdown → materialised
+      sequence and shots → one of those shots carried through the existing loop to a real
+      generation. The point of the first pass is that the chain holds, not that the script is
+      good. †
+- [ ] Tests: contract validation and the materialisation rules (additive, refuses to clobber a
+      shot with versions) — the parts where being wrong destroys work that cost money. †
 
 ### Deliberately out of scope for a first pass
 
 Feature-length or multi-act structure (one sequence, a handful of shots); per-shot storyboard
-frames; casting, dialogue or voice; any editing timeline. The point of the first pass is proving
-the *chain* holds end to end, not that the script is good.
-
-### Sequencing note
-
-This is the strongest remaining product idea and also the largest, and it competes directly with
-the beta release above for the same days. A thin slice — **script → breakdown → materialise, text
-only, no asset generation** — would transform the demo narrative (an idea becoming a real shot
-list the existing loop then executes) at a fraction of the cost, since it adds no new billed call
-class and reuses `shots.brief` as its only seam. That slice is the recommended first move if this
-is attempted before the release rather than after it.
-
----
+frames; casting, dialogue or voice; any editing timeline.
 
 ## Explicit scope decisions (ask before reversing these)
 
