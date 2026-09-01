@@ -14,7 +14,10 @@ export const shotStatusSchema = z.enum([
 ]);
 export type ShotStatus = z.infer<typeof shotStatusSchema>;
 
-export const qcVerdictSchema = z.enum(["pass", "fail", "warning"]);
+/** not_applicable is a real verdict, not a missing one: an axis that cannot be
+ *  observed in this shot must be declinable, or a framing choice becomes a
+ *  phantom defect. Mirrored in server/models/contracts.py. */
+export const qcVerdictSchema = z.enum(["pass", "fail", "warning", "not_applicable"]);
 export type QCVerdict = z.infer<typeof qcVerdictSchema>;
 
 export const qcSeveritySchema = z.enum(["info", "warning", "critical"]);

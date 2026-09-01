@@ -1,21 +1,37 @@
-import { AlertTriangle, Check, X } from "lucide-react";
+import { AlertTriangle, Check, Minus, X } from "lucide-react";
 import type { QcFinding } from "@/lib/data";
 
 const VERDICT_STYLE: Record<QcFinding["verdict"], string> = {
   pass: "bg-success/15 text-success",
   warning: "bg-warning/15 text-warning",
   fail: "bg-destructive/15 text-destructive",
+  // Deliberately the desaturated token, not success: an axis that could not be
+  // observed is not a passing axis, and must not read like one at a glance.
+  not_applicable: "bg-info/15 text-info",
 };
+
+// Only a declined axis is spelled out. Colour plus icon already carries
+// pass/warning/fail, and stamping "PASS" on every chip would be noise - but a
+// desaturated category name with a dash does not say "this was not looked at",
+// which is precisely what has to land.
+const NOT_CHECKED_SUFFIX = " · not checked";
 
 function VerdictIcon({ verdict }: { verdict: QcFinding["verdict"] }) {
   if (verdict === "pass") return <Check className="size-[10px]" />;
   if (verdict === "warning") return <AlertTriangle className="size-[10px]" />;
+  if (verdict === "not_applicable") return <Minus className="size-[10px]" />;
   return <X className="size-[10px]" />;
 }
 
 export function QcReport({ findings }: { findings: QcFinding[] }) {
+  // A band on this timeline means "something happened in these frames". An axis
+  // that could not be observed is excluded even if the critic attached a range
+  // to it, because otherwise a not-checked axis paints as a defect.
   const flagged = findings.filter(
-    (f) => f.frameRangeStart !== null && f.frameRangeEnd !== null,
+    (f) =>
+      f.verdict !== "not_applicable" &&
+      f.frameRangeStart !== null &&
+      f.frameRangeEnd !== null,
   ) as (QcFinding & { frameRangeStart: number; frameRangeEnd: number })[];
 
   // Scaled to the flagged findings' own span, not a fixed frame count -
@@ -55,6 +71,7 @@ export function QcReport({ findings }: { findings: QcFinding[] }) {
           >
             <VerdictIcon verdict={finding.verdict} />
             {finding.category.replace(/_/g, " ")}
+            {finding.verdict === "not_applicable" ? NOT_CHECKED_SUFFIX : ""}
             {finding.frameRangeStart !== null
               ? ` · F${finding.frameRangeStart}-${finding.frameRangeEnd}`
               : ""}

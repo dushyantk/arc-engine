@@ -13,7 +13,10 @@ from pydantic import BaseModel, Field
 ShotStatus = Literal[
     "pending", "generating", "reviewing", "revise", "approved", "needs_human"
 ]
-QCVerdict = Literal["pass", "fail", "warning"]
+# not_applicable is a real verdict, not a missing one: an axis that cannot be
+# observed in this shot must be declinable. Forcing a pass/fail there is how a
+# framing choice becomes a phantom defect - see agents/critic.py.
+QCVerdict = Literal["pass", "fail", "warning", "not_applicable"]
 QCSeverity = Literal["info", "warning", "critical"]
 
 

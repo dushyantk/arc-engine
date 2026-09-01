@@ -39,10 +39,19 @@ def resolve_shot_status(
 def evaluate(findings: list[QCFinding], version_number: int, *, run_id: str, shot_code: str) -> ShotStatus:
     fails = [f for f in findings if f.verdict == "fail"]
     warnings = [f for f in findings if f.verdict == "warning"]
+    # An axis the critic could not observe blocks nothing - but it is not a pass
+    # either, and is counted separately so "approved" never quietly means
+    # "nothing was actually checked".
+    declined = [f for f in findings if f.verdict == "not_applicable"]
+    checked = [f for f in findings if f.verdict in ("pass", "fail", "warning")]
 
     if not fails:
         status: ShotStatus = "approved"
-        reason = f"0 fails, {len(warnings)} tolerated warning(s)."
+        reason = (
+            f"0 fails, {len(warnings)} tolerated warning(s), "
+            f"{len(checked)} axis/axes actually checked"
+            + (f", {len(declined)} not applicable to this framing." if declined else ".")
+        )
     elif version_number >= MAX_REVISION_ROUNDS:
         status = "needs_human"
         reason = f"{len(fails)} fail(s) after {version_number} rounds, cap reached."

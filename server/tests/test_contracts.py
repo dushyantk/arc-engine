@@ -94,6 +94,50 @@ class TestApprovalGate:
         assert result == "needs_human"
 
 
+class TestNotApplicableAxes:
+    """An axis the critic could not observe must block nothing, and must not be
+    laundered into a pass. Scoring a category on a shot that cannot show it is
+    how a framing choice becomes a phantom defect."""
+
+    def test_a_declined_axis_does_not_block(self) -> None:
+        result = evaluate(
+            [finding("pass"), finding("not_applicable", "hero_prop")],
+            1,
+            run_id="test",
+            shot_code="SH999",
+        )
+        assert result == "approved"
+
+    def test_a_declined_axis_is_not_counted_as_a_pass(self) -> None:
+        """The reason line has to distinguish "checked and fine" from "not
+        checked", or an approval quietly means nothing was looked at."""
+        findings = [finding("pass"), finding("not_applicable", "hero_prop")]
+        checked = [f for f in findings if f.verdict in ("pass", "fail", "warning")]
+        declined = [f for f in findings if f.verdict == "not_applicable"]
+        assert len(checked) == 1
+        assert len(declined) == 1
+
+    def test_a_real_fail_still_blocks_alongside_declined_axes(self) -> None:
+        result = evaluate(
+            [finding("not_applicable", "hero_prop"), finding("fail", "temporal_stability")],
+            1,
+            run_id="test",
+            shot_code="SH999",
+        )
+        assert result == "revise"
+
+    def test_every_axis_declined_still_approves_but_checked_nothing(self) -> None:
+        """Honest edge: nothing observable means nothing failed. It approves,
+        and the recorded reason has to say zero axes were checked."""
+        result = evaluate(
+            [finding("not_applicable"), finding("not_applicable", "screen_direction")],
+            1,
+            run_id="test",
+            shot_code="SH999",
+        )
+        assert result == "approved"
+
+
 class TestResolveShotStatus:
     """Latest and approved are independent axes. A later version - unevaluated,
     or deliberately fired after an approval landed - must not revoke it."""

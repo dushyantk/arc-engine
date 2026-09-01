@@ -71,12 +71,21 @@ const LEDGER_DETAIL: Record<string, (calls: number) => string> = {
 type Verdict = LandingFinding["verdict"];
 type AgentSpend = LandingStats["byAgent"][number];
 
-const VERDICT_ORDER: Record<Verdict, number> = { fail: 0, warning: 1, pass: 2 };
+// Declined axes sort last: the page quotes the critic to show it makes real
+// calls, and "could not observe this" is the least interesting of them.
+const VERDICT_ORDER: Record<Verdict, number> = {
+  fail: 0,
+  warning: 1,
+  pass: 2,
+  not_applicable: 3,
+};
 
 const VERDICT_UI: Record<Verdict, { label: string; icon: string; tone: string }> = {
   fail: { label: "Fail", icon: "#i-fail", tone: "fail" },
   warning: { label: "Warning", icon: "#i-warn", tone: "warn" },
   pass: { label: "Pass", icon: "#i-check", tone: "pass" },
+  // Not a pass, and styled so it cannot be mistaken for one.
+  not_applicable: { label: "Not checked", icon: "#i-human", tone: "warn" },
 };
 
 function formatUsd(amount: number) {

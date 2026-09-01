@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS dailies.qc_findings
     shot_id            String, -- Postgres shots.id
     version            UInt32,
     category           String,
-    verdict            Enum8('pass' = 1, 'fail' = 2, 'warning' = 3),
+    verdict            Enum8('pass' = 1, 'fail' = 2, 'warning' = 3, 'not_applicable' = 4),
     frame_range_start  Nullable(UInt32),
     frame_range_end    Nullable(UInt32),
     description        String,

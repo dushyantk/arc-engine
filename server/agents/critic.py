@@ -32,8 +32,24 @@ Reference images are attached and labeled by type and name.
 For each of these categories, produce a QCFinding: character_identity, costume_continuity,
 hero_prop, environment_continuity, screen_direction, lighting_continuity, temporal_stability
 (flickering, geometry crawl, deforming text/numerals, mutating faces, objects teleporting or
-changing hands/position mid-shot). Skip a category only if it genuinely does not apply to this
-shot (e.g. no on-screen text to evaluate for temporal_stability).
+changing hands/position mid-shot).
+
+Produce a finding for EVERY category. Where a category cannot be observed in this shot, its
+verdict is "not_applicable" — do not omit it, and do not force it into a pass or a fail.
+An axis you cannot see is not an axis that is fine. Use "not_applicable" when:
+
+  - hero_prop: no hero prop is in frame at all, or the framing excludes it
+  - character_identity: no character's face is legible in any frame
+  - costume_continuity: the framing shows no clothing (an extreme close-up, or a shot
+    from behind)
+  - screen_direction: nothing travels laterally, so there is no direction to be wrong
+  - environment_continuity: the background is not legible in any frame
+  - temporal_stability: no on-screen text, geometry or face is held long enough to judge
+
+This matters because a category scored on a shot that cannot show it produces a phantom defect:
+a fail on the prop's screen side in a shot the prop is not in reads identically to a real
+continuity break, and the difference only shows up when someone re-watches the footage by hand.
+Say plainly in the description WHY the axis could not be observed.
 
 For hero_prop specifically, do not judge it from the video alone — continuous video playback has
 been found, by direct verification against ground truth, to miss a prop that duplicates across

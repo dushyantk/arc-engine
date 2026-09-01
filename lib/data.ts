@@ -13,7 +13,7 @@ import { getClickHouseClient } from "@/lib/clickhouse";
 
 export type QcFinding = {
   category: string;
-  verdict: "pass" | "fail" | "warning";
+  verdict: "pass" | "fail" | "warning" | "not_applicable";
   frameRangeStart: number | null;
   frameRangeEnd: number | null;
   description: string;
@@ -38,7 +38,7 @@ export async function getQcFindings(shotId: string, version: number) {
   });
   const rows = await result.json<{
     category: string;
-    verdict: "pass" | "fail" | "warning";
+    verdict: "pass" | "fail" | "warning" | "not_applicable";
     frame_range_start: number | null;
     frame_range_end: number | null;
     description: string;
@@ -991,7 +991,7 @@ export async function getLandingFindings(): Promise<LandingFinding[]> {
     shot_id: string;
     version: number;
     category: string;
-    verdict: "pass" | "fail" | "warning";
+    verdict: "pass" | "fail" | "warning" | "not_applicable";
     frame_range_start: number | null;
     frame_range_end: number | null;
     description: string;
