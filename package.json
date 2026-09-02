@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "dev:web": "next dev --port 3210",
     "dev:api": "uv run --directory server uvicorn main:app --reload --port 8091",
     "dev": "concurrently -n web,api -c blue,magenta \"pnpm dev:web\" \"pnpm dev:api\"",
