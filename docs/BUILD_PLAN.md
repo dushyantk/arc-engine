@@ -637,11 +637,15 @@ strategy. What transfers, in value order:
       VLM-vs-embedding: there a non-face reference never reaches the scorer, because ArcFace
       returns no vector and the character is flagged unverifiable. Left advisory and wired to
       nothing; the mistakes are documented in the module.
-- [ ] **A cheapest-first repair ladder.** `continuity_repair.repair_steps()` is ~37 lines of pure
-      logic, no dependencies: pick the worst-scoring component, then try `reseed` → `reanchor` →
-      `videoedit` bounded by the renders left, keeping the best result. Directly portable, and it
-      maps onto something this project now has and does not use — three Veo tiers. A failed shot
-      should retry on `lite` before it retries on `standard`.
+- [x] **A cheapest-first repair ladder.** Done in 82751b0 — `server/agents/repair.py`, pure logic,
+      ten tests. That project varies the *strategy* (reseed/reanchor/videoedit); this one has three
+      Veo tiers with an 8x spread, so the tier is the first lever. Rerolls before revising unless
+      the failure already reproduced, because SH020 v006 proved by hand that three of four findings
+      were run-to-run variance — that experiment cost a full-price generation and now costs an
+      eighth. Escalates the tier last: a dearer tier renders a bad prompt more expensively rather
+      than fixing it. Against real history, SH020 v2 and SH030 v5 both open on a $0.40 reroll where
+      the naive retry is $3.20. Advisory, printed by `run_session` after a failed evaluation;
+      automatic repair is off by default there too.
 - [ ] **Per-run budget enforcement** (closes the item deferred under Run control). Its
       `cost_ledger.aggregate()` returns `within_budget` and `remaining` against a project budget,
       and `budget_estimator` projects a drama's spend *before* generating, calibrated against real
