@@ -14,8 +14,10 @@ from uuid import UUID
 
 import asyncpg
 
+from agents.materialise import ExistingShot, MaterialisationPlan
 from db.models import (
     ApprovalEvent,
+    Breakdown,
     ReferenceAsset,
     Script,
     Sequence,
@@ -104,9 +106,21 @@ class Database:
                 + (f" in show {show_name!r}" if show_name else "")
             )
         if len(rows) > 1:
-            shows = ", ".join(sorted({r["show_name"] for r in rows}))
+            shows = sorted({r["show_name"] for r in rows})
+            if len(shows) > 1:
+                raise LookupError(
+                    f"shot {shot_code!r} exists in more than one show "
+                    f"({', '.join(shows)}) - name the show to disambiguate"
+                )
+            # Same show, so naming it would not disambiguate anything. Saying
+            # "more than one show" here would assert a cause that is not true and
+            # send the operator to fix their side for our lapse: shot codes are
+            # required to be unique within a show, and these are not.
+            sequences = ", ".join(sorted(r["sequence_code"] for r in rows))
             raise LookupError(
-                f"shot {shot_code!r} exists in more than one show ({shows}) - pass --show to disambiguate"
+                f"shot {shot_code!r} is not unique within show {shows[0]!r} - it exists in "
+                f"sequences {sequences}. Shot codes must be unique per show; this show's data "
+                f"violates that and no argument can pick between them."
             )
         row = rows[0]
         shot = Shot(**{k: row[k] for k in Shot.model_fields})
@@ -305,3 +319,143 @@ class Database:
         )
         assert row is not None
         return ApprovalEvent(**dict(row))
+
+    # -- Breakdowns -------------------------------------------------------
+
+    async def get_approved_script(self, show_id: UUID) -> Script | None:
+        """The one script a breakdown may be made from. There is at most one:
+        approving a script supersedes the previously approved one."""
+        row = await self.pool.fetchrow(
+            "SELECT * FROM scripts WHERE show_id = $1 AND status = 'approved'", show_id
+        )
+        return Script(**dict(row)) if row else None
+
+    async def get_breakdowns(self, script_id: UUID) -> list[Breakdown]:
+        rows = await self.pool.fetch(
+            "SELECT * FROM breakdowns WHERE script_id = $1 ORDER BY version_number DESC", script_id
+        )
+        return [Breakdown(**dict(r)) for r in rows]
+
+    async def get_breakdown(self, breakdown_id: UUID) -> Breakdown:
+        row = await self.pool.fetchrow("SELECT * FROM breakdowns WHERE id = $1", breakdown_id)
+        if row is None:
+            raise LookupError(f"breakdown {breakdown_id} not found")
+        return Breakdown(**dict(row))
+
+    async def insert_breakdown(self, *, script_id: UUID, payload: dict[str, Any]) -> Breakdown:
+        """A new version per attempt, like scripts and shot versions. A
+        breakdown that was rejected stays readable next to the one that won."""
+        row = await self.pool.fetchrow(
+            """
+            INSERT INTO breakdowns (script_id, version_number, payload, status)
+            VALUES (
+                $1,
+                (SELECT coalesce(max(version_number), 0) + 1
+                   FROM breakdowns WHERE script_id = $1),
+                $2, 'draft'
+            )
+            RETURNING *
+            """,
+            script_id,
+            payload,
+        )
+        assert row is not None
+        return Breakdown(**dict(row))
+
+    async def get_existing_shape(self, show_id: UUID) -> dict[str, dict[str, ExistingShot]]:
+        """What already exists for this show, keyed the way a breakdown talks:
+        sequence code -> shot code -> shot.
+
+        `has_versions` is computed here rather than inferred from status,
+        because status is a judgement and versions are a fact - and the fact is
+        what decides whether a shot may be rewritten.
+        """
+        rows = await self.pool.fetch(
+            """
+            SELECT sq.code AS sequence_code,
+                   sh.code AS shot_code,
+                   sh.brief,
+                   EXISTS (SELECT 1 FROM shot_versions v WHERE v.shot_id = sh.id) AS has_versions
+            FROM sequences sq
+            LEFT JOIN shots sh ON sh.sequence_id = sq.id
+            WHERE sq.show_id = $1
+            """,
+            show_id,
+        )
+        shape: dict[str, dict[str, ExistingShot]] = {}
+        for r in rows:
+            # LEFT JOIN: a sequence with no shots still has to appear, or it
+            # would be planned as a create and collide on insert.
+            bucket = shape.setdefault(r["sequence_code"], {})
+            if r["shot_code"] is None:
+                continue
+            bucket[r["shot_code"]] = ExistingShot(
+                code=r["shot_code"], brief=r["brief"], has_versions=r["has_versions"]
+            )
+        return shape
+
+    async def apply_materialisation(
+        self, *, show_id: UUID, breakdown_id: UUID, plan: MaterialisationPlan
+    ) -> None:
+        """Writes the plan, in one transaction. Creates and brief updates only -
+        the plan's skip actions are skips here too, and nothing is deleted.
+
+        Transactional because a half-materialised shot list is worse than none:
+        the operator would have to work out by hand which shots were real.
+        """
+        async with self.pool.acquire() as conn, conn.transaction():
+            for seq in plan.sequences:
+                sequence_id = await conn.fetchval(
+                    "SELECT id FROM sequences WHERE show_id = $1 AND code = $2",
+                    show_id,
+                    seq.code,
+                )
+                if sequence_id is None:
+                    sequence_id = await conn.fetchval(
+                        """
+                        INSERT INTO sequences (show_id, code, description, status)
+                        VALUES ($1, $2, $3, 'pending') RETURNING id
+                        """,
+                        show_id,
+                        seq.code,
+                        seq.description,
+                    )
+
+                for shot in seq.shots:
+                    if shot.action == "create":
+                        await conn.execute(
+                            """
+                            INSERT INTO shots
+                                (sequence_id, code, order_index, screen_direction, brief,
+                                 status, created_from_breakdown_id)
+                            VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+                            """,
+                            sequence_id,
+                            shot.code,
+                            shot.order_index,
+                            shot.screen_direction,
+                            shot.brief,
+                            breakdown_id,
+                        )
+                    elif shot.action == "update_brief":
+                        # Provenance is not touched on an update. The shot was
+                        # created by whatever created it; this breakdown only
+                        # revised its brief, and claiming otherwise would
+                        # rewrite history.
+                        await conn.execute(
+                            """
+                            UPDATE shots SET brief = $1, screen_direction = $2, order_index = $3
+                            WHERE sequence_id = $4 AND code = $5
+                            """,
+                            shot.brief,
+                            shot.screen_direction,
+                            shot.order_index,
+                            sequence_id,
+                            shot.code,
+                        )
+
+            await conn.execute(
+                "UPDATE breakdowns SET status = 'materialised', materialised_at = now() "
+                "WHERE id = $1",
+                breakdown_id,
+            )

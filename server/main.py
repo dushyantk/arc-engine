@@ -6,6 +6,7 @@ from env import bootstrap
 
 bootstrap()
 
+from routes.breakdowns import router as breakdowns_router
 from routes.runs import router as runs_router
 from routes.scripts import router as scripts_router
 
@@ -18,6 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(breakdowns_router)
 app.include_router(runs_router)
 app.include_router(scripts_router)
 
