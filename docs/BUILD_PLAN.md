@@ -571,22 +571,42 @@ recommended first move if this is attempted before the beta release rather than 
 
 ### 6.2 — Script to breakdown to real entities
 
-- [ ] `breakdowns` table: `(id, script_id, version_number, payload jsonb, status, created_at)`.
-      Kept as its own artifact rather than only as its effects, so "why does this shot exist" has
-      an answer. †
-- [ ] `SceneBreakdown` contract — `{ sequences: [{ code, description, shots: [{ code,
-      order_index, screen_direction, brief }] }], assets: [{ type, name, description,
-      why_needed }] }`. †
-- [ ] Breakdown agent (`server/agents/breakdown.py`): approved script → `SceneBreakdown`,
-      producing briefs in the shape the planner already reads. †
-- [ ] Breakdown review UI: see the proposed sequences, shots and assets **before** anything is
-      written, then approve. Materialising creates real rows, so it needs its own gate. †
-- [ ] **Materialisation — transactional, additive, and non-destructive.** A re-breakdown after a
-      script revision diffs against what exists and **refuses to touch any shot that already has
-      versions**: real spend is not collateral damage of a re-plan. Destructive changes only on an
-      explicit, itemised confirmation. †
-- [ ] `shots.created_from_breakdown_id` — a shot's existence gets provenance, the same way its
-      footage already does. †
+- [x] `breakdowns` table — done in b85101b. Its own artifact rather than only its effects: once
+      materialised nothing reads the row, but "why does this shot exist" needs an answer that
+      outlives the run, and a rejected proposal has to stay readable next to the one taken.
+      `payload` stored whole, not shredded into columns — it is a proposal, read back for review
+      and provenance, never queried across. `approval_events` took `breakdown` as a third subject
+      with its own FK and its own arm of the CHECK. †
+- [x] `SceneBreakdown` contract — done in b85101b, Zod and Pydantic mirrors, malformed output a
+      hard stop like `story.py` and `critic.py`. †
+- [x] Breakdown agent ([`server/agents/breakdown.py`](../server/agents/breakdown.py)) — done in
+      1a0a602. Writes into `shots.brief`, the same field an operator types and the planner already
+      consumes, so nothing downstream of a shot changes to accept one that was proposed rather
+      than typed. Required extending the ClickHouse `agent_name` Enum8 for `breakdown_agent`
+      *before* anything wrote to it. Real cost: $0.012-$0.014 a pass, 55-190s. †
+- [x] Breakdown review UI — done at `/dashboard/[showId]/breakdown`, linked and summarised from
+      the show page. Shows the whole plan shot by shot with what each action would do, before the
+      button that does it. A protected shot's proposed brief is struck through and marked
+      "proposed, not applied": it is the one place the system deliberately ignores the agent, and
+      printing the discarded proposal plainly would read as the shot's real brief. A plan that
+      would write nothing disables the button and says why rather than pretending to work.
+      Approval writes the `approval_events` row *first*, then materialises, so the record of the
+      decision cannot go missing if materialising fails. Verified by driving the real UI. †
+- [x] **Materialisation — transactional, additive, and non-destructive.** Done in 1a0a602.
+      `agents/materialise.py` computes a plan and writes nothing; `apply_materialisation` writes it
+      in one transaction. Splitting them is deliberate — these are the rules where being wrong
+      destroys paid work, so they are pure, unit-tested, and reviewable as a list first. A shot
+      with versions is untouchable. Nothing is ever deleted: a dropped shot is reported as
+      orphaned, which is what "explicit, itemised confirmation" means in practice — the plan is
+      the itemisation and a human reading it is the confirmation. `/materialise` re-plans against
+      live state rather than trusting the plan from `/propose`, since a shot may have been
+      generated in between. Verified against live data: a re-breakdown rewriting every brief left
+      the one shot carrying a version alone and updated the other six — protection is per shot,
+      not per sequence. †
+- [x] `shots.created_from_breakdown_id` — done in b85101b. `ON DELETE SET NULL`, not cascade:
+      deleting a proposal must not delete real work that came out of it. Null stays valid, since
+      creating a shot by hand remains supported. Not touched on a brief update — this breakdown
+      revised the brief, it did not create the shot, and claiming otherwise rewrites history. †
 
 ### 6.3 — Asset sheets
 
@@ -603,12 +623,21 @@ recommended first move if this is attempted before the beta release rather than 
 
 ### 6.4 — Prove the chain
 
-- [ ] End-to-end on a throwaway show: idea prompt → approved script → breakdown → materialised
-      sequence and shots → one of those shots carried through the existing loop to a real
-      generation. The point of the first pass is that the chain holds, not that the script is
-      good. †
-- [ ] Tests: contract validation and the materialisation rules (additive, refuses to clobber a
-      shot with versions) — the parts where being wrong destroys work that cost money. †
+- [x] End-to-end on a throwaway show ("Lantern Signal"): idea prompt → script → approval →
+      breakdown → 3 sequences and 7 shots with provenance → resolvable by the run trigger. $0.045
+      for the whole chain. Carrying one of those shots through to a real Veo generation is the
+      remaining half of this item and is deliberately deferred — it is the same existing loop,
+      already proven, and costs $3.20 to re-demonstrate.
+      **Two defects the run found that reasoning had not.** The agent was told to restart shot
+      numbering per sequence, producing three SH010s in one show; they materialised fine and then
+      could not be run at all, since `find_shot_by_code` resolves by code. Fixed in the prompt and
+      *enforced* in `plan_materialisation` — a prompt is guidance, a guard is a guarantee. That
+      failure surfaced as "exists in more than one show (Breakdown Chain Test) — pass --show to
+      disambiguate", which named one show as more than one and told the operator to pass a flag
+      they had already passed; it now separates the two causes and says which one happened. †
+- [x] Tests: `server/tests/test_materialise.py`, 18 cases over the rules where being wrong
+      destroys paid work — protection per shot, orphans reported and never deleted, no-op plans
+      identified, duplicate codes refused before any planning happens. 63 tests total. †
 
 ### Ideas taken from Rexgent (`~/dev/Rexgent`), and what they cost to adopt
 

@@ -10,6 +10,7 @@ import {
   shows,
 } from "@/db/schema";
 import { getClickHouseClient } from "@/lib/clickhouse";
+import { callRuntime } from "@/lib/runtime";
 
 export type QcFinding = {
   category: string;
@@ -1041,4 +1042,59 @@ export async function getShotDeepLink(shotCode: string) {
     .limit(1);
   if (!row) return null;
   return `/dashboard/${row.showId}/${row.sequenceCode}/${shotCode}`;
+}
+
+// ---------------------------------------------------------------------------
+// Breakdowns. Unlike everything else here these come from the agent runtime
+// rather than straight from Postgres: the proposal is stored as an opaque JSON
+// payload, and the plan is *computed* against live state by the same code that
+// applies it. Reading it here through Drizzle would mean a second, drifting
+// implementation of the rules that protect paid work.
+
+export type BreakdownShotPlan = {
+  code: string;
+  order_index: number;
+  screen_direction: string;
+  brief: string;
+  action: "create" | "update_brief" | "skip_protected" | "skip_unchanged";
+  reason: string;
+};
+
+export type BreakdownAsset = {
+  type: "character" | "prop" | "environment" | "palette";
+  name: string;
+  description: string;
+  why_needed: string;
+};
+
+export type LatestBreakdown = {
+  breakdown_id: string;
+  version_number: number;
+  status: "draft" | "approved" | "materialised" | "superseded";
+  breakdown: { assets: BreakdownAsset[] };
+  plan: {
+    sequences: {
+      code: string;
+      description: string;
+      action: "create" | "reuse";
+      shots: BreakdownShotPlan[];
+    }[];
+    orphaned: string[];
+  };
+};
+
+/** The show's most recent breakdown, re-planned against live state, or null if
+ *  there is none. Returns null rather than throwing when the runtime is down —
+ *  the page says so itself, since "no breakdown yet" and "cannot reach the
+ *  runtime" are different things a reader needs told apart. */
+export async function getLatestBreakdown(
+  showId: string,
+): Promise<{ data: LatestBreakdown | null; runtimeReachable: boolean }> {
+  try {
+    const { status, body } = await callRuntime(`/breakdowns/${showId}/latest`);
+    if (status < 200 || status >= 300) return { data: null, runtimeReachable: true };
+    return { data: (body as LatestBreakdown | null) ?? null, runtimeReachable: true };
+  } catch {
+    return { data: null, runtimeReachable: false };
+  }
 }

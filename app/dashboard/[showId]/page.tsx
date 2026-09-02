@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock, Plus, Unlock } from "lucide-react";
-import { getScripts, getShowDetail } from "@/lib/data";
+import { getLatestBreakdown, getScripts, getShowDetail } from "@/lib/data";
 import { createSequence, setReferenceLock, uploadReferenceAsset } from "@/lib/actions";
 import { UploadReferenceDialog } from "@/components/upload-reference-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -38,6 +38,17 @@ export default async function ShowDetailPage({
     : scripts.length > 0
       ? `${scripts.length} draft${scripts.length === 1 ? "" : "s"}, none approved yet`
       : "No script yet — write the idea this show is planned from";
+  // Deliberately not fetched when there is no approved script: the breakdown
+  // row's whole job then is to say what has to happen first, and asking the
+  // runtime for a breakdown that cannot exist would only add a way to fail.
+  const { data: latestBreakdown } = approvedScript
+    ? await getLatestBreakdown(showId)
+    : { data: null };
+  const breakdownSummary = !approvedScript
+    ? "Approve a script first — a shot list is broken down from what was signed off"
+    : latestBreakdown
+      ? `v${latestBreakdown.version_number} ${latestBreakdown.status} — ${latestBreakdown.plan.sequences.reduce((n, sq) => n + sq.shots.length, 0)} shots across ${latestBreakdown.plan.sequences.length} sequences`
+      : "Not broken down yet — turn the approved script into a shot list";
   const createSequenceForShow = createSequence.bind(null, showId);
   const uploadReferenceForShow = uploadReferenceAsset.bind(null, showId);
 
@@ -116,6 +127,17 @@ export default async function ShowDetailPage({
           <p className="mt-0.5 text-xs text-muted-foreground">
             {scriptSummary}
           </p>
+        </div>
+        <span className="font-mono text-xs text-primary">Open &rarr;</span>
+      </Link>
+
+      <Link
+        href={`/dashboard/${showId}/breakdown`}
+        className="mt-2 flex items-center justify-between gap-4 rounded-md border border-border bg-card px-4 py-3 transition-colors hover:border-ring"
+      >
+        <div>
+          <p className="font-mono text-sm font-medium">Breakdown</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{breakdownSummary}</p>
         </div>
         <span className="font-mono text-xs text-primary">Open &rarr;</span>
       </Link>

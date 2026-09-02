@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import {
   approvalEvents,
   referenceAssets,
+  breakdowns,
   scripts,
   sequences,
   shotVersions,
@@ -367,4 +368,84 @@ export async function submitScriptApproval(
 
   revalidatePath(`/dashboard/${showId}/script`);
   redirect(`/dashboard/${showId}/script`);
+}
+
+// ---------------------------------------------------------------------------
+// Breakdown control: an approved script becomes a proposed shot list, and then
+// - only on a human's word - real sequences and shots.
+//
+// Proposing is cheap text and writes only the proposal. Approving is what
+// creates rows, so it is the gate: the approval event is written first, then
+// the runtime materialises. That order means the record of the decision cannot
+// go missing if materialising fails halfway.
+
+export async function proposeBreakdown(showId: string) {
+  const { status, body } = await callRuntime("/breakdowns/propose", {
+    method: "POST",
+    body: JSON.stringify({ show_id: showId }),
+  });
+
+  if (status < 200 || status >= 300) {
+    const detail =
+      body && typeof body === "object" && "detail" in body
+        ? String((body as { detail: unknown }).detail)
+        : "The agent runtime could not break down this script.";
+    throw new Error(detail);
+  }
+
+  revalidatePath(`/dashboard/${showId}/breakdown`);
+}
+
+const breakdownApprovalSchema = z
+  .object({
+    decision: z.enum(["approved", "rejected"]),
+    reason: z.string().trim().max(2000).optional(),
+  })
+  .refine((data) => data.decision === "approved" || !!data.reason, {
+    message: "A reason is required when rejecting.",
+    path: ["reason"],
+  });
+
+export async function submitBreakdownApproval(
+  showId: string,
+  breakdownId: string,
+  formData: FormData,
+) {
+  const parsed = breakdownApprovalSchema.parse({
+    decision: formData.get("decision"),
+    reason: formData.get("reason") || undefined,
+  });
+
+  await db.insert(approvalEvents).values({
+    subjectType: "breakdown",
+    breakdownId,
+    actor: "human",
+    decision: parsed.decision,
+    reason: parsed.reason ?? null,
+  });
+
+  if (parsed.decision === "approved") {
+    const { status, body } = await callRuntime("/breakdowns/materialise", {
+      method: "POST",
+      body: JSON.stringify({ show_id: showId, breakdown_id: breakdownId }),
+    });
+    if (status < 200 || status >= 300) {
+      const detail =
+        body && typeof body === "object" && "detail" in body
+          ? String((body as { detail: unknown }).detail)
+          : "The approval was recorded, but materialising the shot list failed.";
+      throw new Error(detail);
+    }
+  } else {
+    // Rejected proposals are kept, not deleted - the reason is on the record
+    // and the proposal stays readable next to whichever one is taken.
+    await db
+      .update(breakdowns)
+      .set({ status: "superseded" })
+      .where(eq(breakdowns.id, breakdownId));
+  }
+
+  revalidatePath(`/dashboard/${showId}/breakdown`);
+  revalidatePath(`/dashboard/${showId}`);
+  redirect(`/dashboard/${showId}/breakdown`);
 }
