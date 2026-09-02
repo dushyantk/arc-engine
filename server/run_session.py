@@ -51,12 +51,17 @@ from uuid import UUID
 
 from minio.error import S3Error
 
-from agents.approval import evaluate, resolve_shot_status
+from agents.approval import MAX_REVISION_ROUNDS, evaluate, resolve_shot_status
 from agents.critic import critique_shot_version
-from agents.decision_log import new_run_id
-from agents.generation import generate_shot_version
+from agents.decision_log import get_veo_pricing, new_run_id
+from agents.generation import DEFAULT_DURATION_SECONDS, generate_shot_version
 from agents.planner import plan_shot
-from agents.production_memory import extract_and_store_fingerprint, store_qc_findings
+from agents.production_memory import (
+    extract_and_store_fingerprint,
+    get_qc_findings,
+    store_qc_findings,
+)
+from agents.repair import repair_steps
 from agents.revision import revise_shot
 from db.models import ReferenceAsset, Shot
 from db.postgres import Database
@@ -64,6 +69,29 @@ from env import bootstrap
 from models.contracts import GenerationSettings, QCFinding, ShotBrief, ShotStatus
 from storage.minio_client import get_bytes, get_client, put_bytes
 from video_frames import extract_poster_frame
+
+
+def _print_repair_ladder(
+    findings: list[QCFinding], *, prior_failed: frozenset[str], renders_left: int
+) -> None:
+    """Recommend how to retry, cheapest first, with what each attempt costs.
+
+    Advisory only - nothing here spends anything. The operator still authorises
+    the next generation, same as the project this ladder was adapted from, where
+    automatic repair is off by default.
+    """
+    steps = repair_steps(
+        findings, renders_left=renders_left, prior_failed_categories=prior_failed
+    )
+    if not steps:
+        return
+    pricing = get_veo_pricing()
+    print("suggested retries, cheapest first:")
+    for i, step in enumerate(steps, start=1):
+        per_second = pricing.get(step.model_tier, 0.0)
+        cost = per_second * DEFAULT_DURATION_SECONDS
+        print(f"  {i}. {step.strategy} on {step.model_tier} (~${cost:.2f})")
+        print(f"     {step.reason}")
 
 
 async def _load_show_shot(
@@ -242,6 +270,17 @@ async def _generate_store_and_critique(
         )
         print(f"next attempt should target v{instruction.target_version}:")
         print(f"  {instruction.revised_prompt[:200]}...")
+        prior_failed = frozenset(
+            f.category
+            for v in existing_versions
+            for f in get_qc_findings(shot_id=str(shot.id), version=v.version_number)
+            if f.verdict == "fail"
+        )
+        _print_repair_ladder(
+            findings,
+            prior_failed=prior_failed,
+            renders_left=max(0, MAX_REVISION_ROUNDS - next_version),
+        )
 
 
 async def recritique(
@@ -323,6 +362,20 @@ async def recritique(
         )
         print(f"next attempt should target v{instruction.target_version}:")
         print(f"  {instruction.revised_prompt[:200]}...")
+        # Prior failures exclude the version just re-critiqued: what it failed
+        # now is the current result, not evidence that it reproduced.
+        prior_failed = frozenset(
+            f.category
+            for v in versions
+            if v.version_number != version_number
+            for f in get_qc_findings(shot_id=str(shot.id), version=v.version_number)
+            if f.verdict == "fail"
+        )
+        _print_repair_ladder(
+            findings,
+            prior_failed=prior_failed,
+            renders_left=max(0, MAX_REVISION_ROUNDS - version_number),
+        )
 
     await db.close()
     return run_id
