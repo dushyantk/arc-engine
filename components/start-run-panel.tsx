@@ -34,6 +34,13 @@ type CatalogModel = {
   preview: boolean;
 };
 
+type BudgetStatus = {
+  ceiling_usd: number | null;
+  spent_usd: number;
+  remaining_usd: number | null;
+  enforced: boolean;
+};
+
 type ModelCatalog = {
   source: "live" | "fallback";
   note: string | null;
@@ -70,6 +77,7 @@ export function StartRunPanel({
   // Distinct from "still loading": saying "asking the API" after the request
   // already failed is the kind of small lie this product keeps arguing against.
   const [catalogFailed, setCatalogFailed] = useState(false);
+  const [budget, setBudget] = useState<BudgetStatus | null>(null);
   // Empty until the catalogue answers: the tier is whatever the API actually
   // offers and recommends, not a name compiled in here that may no longer exist.
   const [tier, setTier] = useState<string>("");
@@ -92,6 +100,13 @@ export function StartRunPanel({
         setCatalog(null);
         setCatalogFailed(true);
       });
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/runs/budget")
+      .then((r) => r.json())
+      .then((data: BudgetStatus) => setBudget(data))
+      .catch(() => setBudget(null));
   }, []);
 
   const selected = catalog?.video.find((m) => m.name === tier) ?? null;
@@ -218,6 +233,22 @@ export function StartRunPanel({
             for an ~{ASSUMED_SECONDS}s shot, plus a few cents of Gemini
             planning/critique cost. Real, billed, not a placeholder number.
           </p>
+
+          {budget?.enforced && budget.remaining_usd !== null ? (
+            <p
+              className={`rounded-sm border px-3 py-2 font-mono text-[11.5px] ${
+                estimate !== null && estimate > budget.remaining_usd
+                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                  : "border-border bg-secondary/60 text-muted-foreground"
+              }`}
+            >
+              ${budget.remaining_usd.toFixed(2)} left of the $
+              {budget.ceiling_usd?.toFixed(2)} ceiling.
+              {estimate !== null && estimate > budget.remaining_usd
+                ? " This run would breach it and will be refused."
+                : ""}
+            </p>
+          ) : null}
 
           {/* Consent is only informed if it says what has already been spent
               here. Attributed by shot code, which is what the decision log

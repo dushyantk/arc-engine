@@ -22,6 +22,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from agents.budget import evaluate_budget, read_ceiling, total_spent_usd
 from agents.decision_log import get_veo_pricing, new_run_id
 from agents.model_catalog import get_model_catalog
 from agents.production_memory import (
@@ -37,6 +38,36 @@ from run_session import reuse_prompt as run_reuse_prompt
 from run_session import run as run_generate
 
 router = APIRouter(prefix="/runs", tags=["runs"])
+
+# Assumed shot length for the pre-flight estimate, matching the dashboard's own
+# figure. The real charge is whatever Veo bills; this is the number the ceiling
+# is checked against before spending, not a quote.
+_ESTIMATE_SECONDS = 8
+
+
+def _require_budget(model_tier: str | None) -> None:
+    """Refuse a billed run that would breach the configured ceiling.
+
+    Checked before the call, not after: a cap that only notices once the money is
+    gone is a report. Unset means unlimited and enforces nothing - see
+    agents/budget.py for why it does not default to a number nobody chose.
+    """
+    # An unknown tier prices at the dearest one. /reuse-prompt inherits its model
+    # from the source version's stored settings and cannot know it here without a
+    # database round-trip, and /generate lets the planner choose when the operator
+    # does not. A ceiling should err toward refusing a run that would have been
+    # cheap rather than admitting one that breaks it.
+    pricing = get_veo_pricing()
+    per_second = pricing.get(model_tier or "", max(pricing.values(), default=0.0))
+    estimate = per_second * _ESTIMATE_SECONDS
+    decision = evaluate_budget(
+        spent_usd=total_spent_usd(),
+        estimate_usd=estimate,
+        ceiling_usd=read_ceiling(),
+    )
+    if not decision.allowed:
+        raise HTTPException(status_code=402, detail=decision.reason)
+
 
 _active: dict[str, str] | None = None
 
@@ -78,6 +109,21 @@ async def get_models(refresh: bool = False) -> dict[str, object]:
     return await get_model_catalog(force_refresh=refresh)
 
 
+@router.get("/budget")
+def get_budget() -> dict[str, float | bool | str | None]:
+    """What is left under the ceiling, so a refusal is predictable rather than a
+    surprise at the moment of consent."""
+    decision = evaluate_budget(
+        spent_usd=total_spent_usd(), estimate_usd=0.0, ceiling_usd=read_ceiling()
+    )
+    return {
+        "ceiling_usd": decision.ceiling_usd,
+        "spent_usd": round(decision.spent_usd, 4),
+        "remaining_usd": None if decision.remaining_usd is None else round(decision.remaining_usd, 4),
+        "enforced": decision.ceiling_usd is not None,
+    }
+
+
 @router.get("/pricing")
 def get_pricing() -> dict[str, float]:
     """Real per-second Veo pricing, so the dashboard's cost estimate is
@@ -106,6 +152,7 @@ async def start_generate(req: GenerateRequest) -> RunStartedResponse:
             status_code=400,
             detail="confirm_cost must be true - this triggers a real, billed Veo call.",
         )
+    _require_budget(req.model_tier)
     _require_idle()
 
     run_id = new_run_id()
@@ -167,6 +214,7 @@ async def start_reuse_prompt(req: ReusePromptRequest) -> RunStartedResponse:
             status_code=400,
             detail="confirm_cost must be true - this triggers a real, billed Veo call.",
         )
+    _require_budget(None)
     _require_idle()
 
     run_id = new_run_id()

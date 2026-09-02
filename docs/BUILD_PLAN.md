@@ -269,7 +269,10 @@ In hierarchy order:
         operation is already in flight server-side at Google, and a cancel button that doesn't
         actually stop real money would be worse than no button. Needs its own design pass on what
         "cancel" honestly means once money may already be spent.
-  - [ ] **Not built: per-run budget cap.** No enforcement yet of a spending ceiling across runs.
+  - [x] **Spending ceiling across runs.** Closed below under the Rexgent transfers. Deliberately
+        global rather than per-show: spend is attributed by shot code in the decision log's
+        `input_ref`, which carries no show, and codes are not globally unique — a per-show cap
+        would be computed from a figure the system cannot actually attribute.
 - [x] **Approval control.** Human approve/reject at version level with a required reason (Zod,
       enforced both client- and server-side), writing a real `approval_events` row with
       `actor='human'` and moving shot status — rejection moves the shot to `revise`, not
@@ -646,10 +649,21 @@ strategy. What transfers, in value order:
       than fixing it. Against real history, SH020 v2 and SH030 v5 both open on a $0.40 reroll where
       the naive retry is $3.20. Advisory, printed by `run_session` after a failed evaluation;
       automatic repair is off by default there too.
-- [ ] **Per-run budget enforcement** (closes the item deferred under Run control). Its
-      `cost_ledger.aggregate()` returns `within_budget` and `remaining` against a project budget,
-      and `budget_estimator` projects a drama's spend *before* generating, calibrated against real
-      ledgers. This project logs cost accurately but enforces no ceiling.
+- [x] **Per-run budget enforcement** (closes the item deferred under Run control). Taken from its
+      `cost_ledger.aggregate()`, which returns `within_budget` and `remaining` against a project
+      budget: the idea worth transferring is that the ledger this project already keeps accurately
+      should be able to *refuse*, not only report. `server/agents/budget.py` reads a ceiling from
+      `DAILIES_BUDGET_USD`, totals real logged spend, and `_require_budget()` gates both billed
+      endpoints with HTTP 402 before the call is made. Unset, malformed, zero or negative all mean
+      unlimited, and the status endpoint says `enforced: false` rather than implying a cap exists.
+      Scoped globally, not per-show, for the attribution reason recorded under Run control above.
+      An unknown tier prices at the dearest rather than the cheapest, so an unrecognised model
+      cannot slip under a cap by being unpriced. `/runs/recritique` is deliberately ungated — it
+      spends no Veo money. Verified live: at a $30 ceiling with $29.78 already spent, a $3.20 run
+      returned 402 with the remaining balance in the message, and the ceiling overrode an explicit
+      `confirm_cost: true` — consent does not buy past it. The start-run panel now fetches
+      `/runs/budget` and says what is left before the click, so a refusal is predictable rather
+      than a surprise at submit time.
 - [ ] **Deterministic pre-generation checks.** `continuity_monitor.py` is pure, no I/O, and catches
       script-level breaks before anything is spent — repeated action across shots, no emotional
       progression between cuts, a question answered by a people-free scenery shot. Free to run, and
