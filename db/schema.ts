@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   check,
   jsonb,
   pgEnum,
@@ -81,6 +82,14 @@ export const shots = pgTable("shots", {
   // ever existed as a CLI --goal argument, never persisted. See
   // docs/BUILD_PLAN.md "Operator control plane" audit item.
   brief: text("brief"),
+  // Which breakdown proposed this shot, when one did. Null for shots created by
+  // hand, which stays the supported path - a shot's existence gets the same
+  // provenance its footage already has. set null, not cascade: deleting the
+  // proposal must not delete real work that came out of it.
+  createdFromBreakdownId: uuid("created_from_breakdown_id").references(
+    (): AnyPgColumn => breakdowns.id,
+    { onDelete: "set null" },
+  ),
 });
 
 export const shotVersions = pgTable("shot_versions", {
@@ -141,13 +150,44 @@ export const scripts = pgTable("scripts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const breakdownStatus = pgEnum("breakdown_status", [
+  "draft",
+  "approved",
+  "materialised",
+  "superseded",
+]);
+
+// The breakdown kept as its own artifact, not only as its effects. Once it has
+// been materialised the sequences and shots exist on their own and nothing
+// downstream reads this row - but "why does this shot exist" needs an answer
+// that outlives the run, and a proposal a human rejected has to stay readable
+// next to the one they took.
+export const breakdowns = pgTable("breakdowns", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  scriptId: uuid("script_id")
+    .notNull()
+    .references(() => scripts.id, { onDelete: "cascade" }),
+  versionNumber: integer("version_number").notNull(),
+  // The agent's SceneBreakdown verbatim. Stored whole rather than shredded into
+  // columns because it is a proposal, not state: it is read back for review and
+  // for provenance, never queried across.
+  payload: jsonb("payload").notNull(),
+  status: breakdownStatus("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  materialisedAt: timestamp("materialised_at", { withTimezone: true }),
+});
+
 // What an approval is *about*. Shot versions were the only subject; scripts are
 // not shots, which is why this table had to stop requiring one on every row.
 //
 // Widened rather than given a second table on purpose: one audit trail and one
 // human-veto path is the product's own claim, and two tables would mean any
 // "every decision on record" view has to stitch them together.
-export const approvalSubject = pgEnum("approval_subject", ["shot_version", "script"]);
+export const approvalSubject = pgEnum("approval_subject", [
+  "shot_version",
+  "script",
+  "breakdown",
+]);
 
 export const approvalEvents = pgTable(
   "approval_events",
@@ -167,6 +207,7 @@ export const approvalEvents = pgTable(
       onDelete: "cascade",
     }),
     scriptId: uuid("script_id").references(() => scripts.id, { onDelete: "cascade" }),
+    breakdownId: uuid("breakdown_id").references(() => breakdowns.id, { onDelete: "cascade" }),
     actor: approvalActor("actor").notNull(),
     decision: text("decision").notNull(),
     reason: text("reason"),
@@ -174,13 +215,14 @@ export const approvalEvents = pgTable(
   },
   (table) => [
     // Exactly the columns its subject requires, enforced by the database rather
-    // than by every caller remembering. Extend this alongside the enum when
-    // scripts and breakdowns become subjects.
+    // than by every caller remembering. Extend this alongside the enum every
+    // time a new kind of thing becomes approvable.
     check(
       "approval_events_subject_target",
       sql`(${table.subjectType} <> 'shot_version'
            OR (${table.shotId} IS NOT NULL AND ${table.shotVersionId} IS NOT NULL))
-          AND (${table.subjectType} <> 'script' OR ${table.scriptId} IS NOT NULL)`,
+          AND (${table.subjectType} <> 'script' OR ${table.scriptId} IS NOT NULL)
+          AND (${table.subjectType} <> 'breakdown' OR ${table.breakdownId} IS NOT NULL)`,
     ),
   ],
 );

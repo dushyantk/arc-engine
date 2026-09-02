@@ -40,6 +40,7 @@ class Shot(BaseModel):
     screen_direction: str | None
     status: ShotStatus
     brief: str | None
+    created_from_breakdown_id: UUID | None
 
 
 class ShotVersion(BaseModel):
@@ -65,7 +66,7 @@ class ReferenceAsset(BaseModel):
     approved_by: str | None
 
 
-ApprovalSubject = Literal["shot_version", "script"]
+ApprovalSubject = Literal["shot_version", "script", "breakdown"]
 ScriptStatus = Literal["draft", "approved", "superseded"]
 
 
@@ -77,6 +78,7 @@ class ApprovalEvent(BaseModel):
     shot_id: UUID | None
     shot_version_id: UUID | None
     script_id: UUID | None
+    breakdown_id: UUID | None
     actor: ApprovalActor
     decision: str
     reason: str | None
@@ -93,3 +95,19 @@ class Script(BaseModel):
     body: str
     status: ScriptStatus
     created_at: datetime
+
+
+BreakdownStatus = Literal["draft", "approved", "materialised", "superseded"]
+
+
+class Breakdown(BaseModel):
+    id: UUID
+    script_id: UUID
+    version_number: int
+    # The agent's SceneBreakdown verbatim. Kept as the raw payload here rather
+    # than parsed, so a row written under an older shape still reads back; the
+    # route validates it into SceneBreakdown at the point of use.
+    payload: dict[str, object]
+    status: BreakdownStatus
+    created_at: datetime
+    materialised_at: datetime | None

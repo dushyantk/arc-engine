@@ -21,6 +21,15 @@ export const qcVerdictSchema = z.enum(["pass", "fail", "warning", "not_applicabl
 export type QCVerdict = z.infer<typeof qcVerdictSchema>;
 
 export const qcSeveritySchema = z.enum(["info", "warning", "critical"]);
+
+/** Mirrors the reference_asset_type pgEnum in db/schema.ts. */
+export const referenceAssetTypeSchema = z.enum([
+  "character",
+  "prop",
+  "environment",
+  "palette",
+]);
+export type ReferenceAssetType = z.infer<typeof referenceAssetTypeSchema>;
 export type QCSeverity = z.infer<typeof qcSeveritySchema>;
 
 /** Veo 3.1 call parameters. An explicit shape, not a loose record — Gemini's
@@ -110,3 +119,38 @@ export const scriptDraftSchema = z.object({
   scenes: z.array(scriptSceneSchema).min(1),
 });
 export type ScriptDraft = z.infer<typeof scriptDraftSchema>;
+
+/** Breakdown agent output: an approved script turned into the sequences, shots
+ *  and assets it implies. The shot `brief` here is the same field the existing
+ *  planner already consumes — that is the seam the whole top-down chain bolts
+ *  onto, so nothing downstream of a shot changes. */
+export const breakdownShotSchema = z.object({
+  code: z.string(),
+  orderIndex: z.number().int().nonnegative(),
+  screenDirection: z.string(),
+  brief: z.string(),
+});
+export type BreakdownShot = z.infer<typeof breakdownShotSchema>;
+
+export const breakdownSequenceSchema = z.object({
+  code: z.string(),
+  description: z.string(),
+  shots: z.array(breakdownShotSchema).min(1),
+});
+export type BreakdownSequence = z.infer<typeof breakdownSequenceSchema>;
+
+/** An asset the script needs a reference for. `whyNeeded` is not decoration —
+ *  it is what a human reads when deciding whether to spend on a sheet for it. */
+export const breakdownAssetSchema = z.object({
+  type: referenceAssetTypeSchema,
+  name: z.string(),
+  description: z.string(),
+  whyNeeded: z.string(),
+});
+export type BreakdownAsset = z.infer<typeof breakdownAssetSchema>;
+
+export const sceneBreakdownSchema = z.object({
+  sequences: z.array(breakdownSequenceSchema).min(1),
+  assets: z.array(breakdownAssetSchema).default([]),
+});
+export type SceneBreakdown = z.infer<typeof sceneBreakdownSchema>;

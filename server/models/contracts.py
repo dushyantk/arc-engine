@@ -17,6 +17,9 @@ ShotStatus = Literal[
 # observed in this shot must be declinable. Forcing a pass/fail there is how a
 # framing choice becomes a phantom defect - see agents/critic.py.
 QCVerdict = Literal["pass", "fail", "warning", "not_applicable"]
+# Mirrors the reference_asset_type pgEnum in db/schema.ts. Named with the suffix
+# because db.models.ReferenceAssetType is the same set under the row model.
+ReferenceAssetTypeLiteral = Literal["character", "prop", "environment", "palette"]
 QCSeverity = Literal["info", "warning", "critical"]
 
 
@@ -140,3 +143,41 @@ class IdentityReport(BaseModel):
     # Only populated on failure, by the second-tier diagnosis call.
     diagnosis: str | None = None
     suggested_change: str | None = None
+
+
+class BreakdownShot(BaseModel):
+    """One proposed shot. `brief` is the same field the existing planner already
+    consumes - the seam the whole top-down chain bolts onto, so nothing
+    downstream of a shot has to change to accept a shot that was proposed
+    rather than typed."""
+
+    code: str
+    order_index: int = Field(ge=0)
+    screen_direction: str
+    brief: str
+
+
+class BreakdownSequence(BaseModel):
+    code: str
+    description: str
+    shots: list[BreakdownShot] = Field(min_length=1)
+
+
+class BreakdownAsset(BaseModel):
+    """An asset the script needs a reference for. `why_needed` is not
+    decoration - it is what a human reads when deciding whether to spend on
+    generating a sheet for it."""
+
+    type: ReferenceAssetTypeLiteral
+    name: str
+    description: str
+    why_needed: str
+
+
+class SceneBreakdown(BaseModel):
+    """Breakdown agent output: an approved script turned into the sequences,
+    shots and assets it implies. A proposal, not state - nothing exists in
+    Postgres until a human approves this and it is materialised."""
+
+    sequences: list[BreakdownSequence] = Field(min_length=1)
+    assets: list[BreakdownAsset] = Field(default_factory=list)
