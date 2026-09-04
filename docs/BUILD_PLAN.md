@@ -571,16 +571,16 @@ recommended first move if this is attempted before the beta release rather than 
 
 ### 6.2 — Script to breakdown to real entities
 
-- [x] `breakdowns` table — done in b85101b. Its own artifact rather than only its effects: once
+- [x] `breakdowns` table — done in b6e7d09. Its own artifact rather than only its effects: once
       materialised nothing reads the row, but "why does this shot exist" needs an answer that
       outlives the run, and a rejected proposal has to stay readable next to the one taken.
       `payload` stored whole, not shredded into columns — it is a proposal, read back for review
       and provenance, never queried across. `approval_events` took `breakdown` as a third subject
       with its own FK and its own arm of the CHECK. †
-- [x] `SceneBreakdown` contract — done in b85101b, Zod and Pydantic mirrors, malformed output a
+- [x] `SceneBreakdown` contract — done in b6e7d09, Zod and Pydantic mirrors, malformed output a
       hard stop like `story.py` and `critic.py`. †
 - [x] Breakdown agent ([`server/agents/breakdown.py`](../server/agents/breakdown.py)) — done in
-      1a0a602. Writes into `shots.brief`, the same field an operator types and the planner already
+      59e1573. Writes into `shots.brief`, the same field an operator types and the planner already
       consumes, so nothing downstream of a shot changes to accept one that was proposed rather
       than typed. Required extending the ClickHouse `agent_name` Enum8 for `breakdown_agent`
       *before* anything wrote to it. Real cost: $0.012-$0.014 a pass, 55-190s. †
@@ -592,7 +592,7 @@ recommended first move if this is attempted before the beta release rather than 
       would write nothing disables the button and says why rather than pretending to work.
       Approval writes the `approval_events` row *first*, then materialises, so the record of the
       decision cannot go missing if materialising fails. Verified by driving the real UI. †
-- [x] **Materialisation — transactional, additive, and non-destructive.** Done in 1a0a602.
+- [x] **Materialisation — transactional, additive, and non-destructive.** Done in 59e1573.
       `agents/materialise.py` computes a plan and writes nothing; `apply_materialisation` writes it
       in one transaction. Splitting them is deliberate — these are the rules where being wrong
       destroys paid work, so they are pure, unit-tested, and reviewable as a list first. A shot
@@ -603,7 +603,7 @@ recommended first move if this is attempted before the beta release rather than 
       generated in between. Verified against live data: a re-breakdown rewriting every brief left
       the one shot carrying a version alone and updated the other six — protection is per shot,
       not per sequence. †
-- [x] `shots.created_from_breakdown_id` — done in b85101b. `ON DELETE SET NULL`, not cascade:
+- [x] `shots.created_from_breakdown_id` — done in b6e7d09. `ON DELETE SET NULL`, not cascade:
       deleting a proposal must not delete real work that came out of it. Null stays valid, since
       creating a shot by hand remains supported. Not touched on a brief update — this breakdown
       revised the brief, it did not create the shot, and claiming otherwise rewrites history. †
@@ -653,11 +653,14 @@ strategy. What transfers, in value order:
       is why identity has been its least reliable finding: it is the one axis that is a measurement
       question. The compliant measurement is **Vertex AI multimodal embeddings**, needing the Vertex
       credential path skipped in ARCHITECTURE.md section 6.
-- [ ] **Suppress an axis when the framing makes it meaningless.** `outfit_scoring_applies()` returns
-      False on CU/ECU/OTS framings, because an over-the-shoulder shows a back — their comment
-      records one such shot scoring outfit 0.1 and dragging a good take down to 40. This project's
-      critic scores `hero_prop` and `screen_direction` on shots where neither is visible, which is
-      the same defect uncaught.
+- [x] **Suppress an axis when the framing makes it meaningless.** Their `outfit_scoring_applies()`
+      returns False on CU/ECU/OTS framings, because an over-the-shoulder shows a back — their
+      comment records one such shot scoring outfit 0.1 and dragging a good take down to 40. Taken
+      differently here: rather than a hardcoded framing table, the critic declines an axis it
+      cannot observe by returning `not_applicable`, and the approval gate counts declined axes
+      separately from passes so "approved" can never quietly mean "nothing was checked". The
+      reason line states how many axes were actually checked. Covered by
+      `TestNotApplicableAxes` in `server/tests/test_contracts.py`.
 - [ ] **Calibrate a raw similarity before treating it as confidence.** A genuine same-person ArcFace
       pair only clears ~0.35; read raw as "35/100" every real match fails. They map it through a
       curve so the genuine threshold lands at 0.75. Any measurement adopted here needs the same
@@ -669,7 +672,7 @@ strategy. What transfers, in value order:
       VLM-vs-embedding: there a non-face reference never reaches the scorer, because ArcFace
       returns no vector and the character is flagged unverifiable. Left advisory and wired to
       nothing; the mistakes are documented in the module.
-- [x] **A cheapest-first repair ladder.** Done in 82751b0 — `server/agents/repair.py`, pure logic,
+- [x] **A cheapest-first repair ladder.** Done in 80dbc58 — `server/agents/repair.py`, pure logic,
       ten tests. That project varies the *strategy* (reseed/reanchor/videoedit); this one has three
       Veo tiers with an 8x spread, so the tier is the first lever. Rerolls before revising unless
       the failure already reproduced, because SH020 v006 proved by hand that three of four findings
