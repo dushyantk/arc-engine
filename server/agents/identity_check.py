@@ -47,7 +47,7 @@ import time
 
 from google.genai import types
 
-from agents.decision_log import estimate_token_cost, log_decision
+from agents.decision_log import estimate_token_cost, log_decision, token_usage
 from genai_client import get_client
 from models.contracts import IdentityReport
 from retry import call_with_retry
@@ -260,9 +260,7 @@ def _log(
     shot_code: str,
     version_number: int,
 ) -> None:
-    usage = getattr(response, "usage_metadata", None)
-    tokens_in = getattr(usage, "prompt_token_count", 0) or 0
-    tokens_out = getattr(usage, "candidates_token_count", 0) or 0
+    tokens_in, tokens_out = token_usage(response)
     log_decision(
         run_id=run_id,
         agent_name="identity_check",

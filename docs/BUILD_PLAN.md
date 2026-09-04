@@ -538,15 +538,31 @@ recommended first move if this is attempted before the beta release rather than 
       caller states it explicitly, and the check rejects a subject that forgets. Verified live: all
       21 rows classified, a malformed row rejected by the constraint, a well-formed one still
       inserting. †
-- [ ] **Pick the image model and price it.** Model availability checked live against the API on
-      2026-08-30: **no Imagen on this key** — image generation is Gemini image models via
-      `generateContent` (`gemini-3-pro-image`, `gemini-3.1-flash-image`,
-      `gemini-3.1-flash-lite-image`, `gemini-2.5-flash-image`, plus `-preview` variants), which is
-      the same call shape as the planner and critic rather than Veo's long-running poll. All three
-      Veo tiers are already priced, including `veo-3.1-lite-generate-preview`; **the image models
-      are not**, so an asset sheet would log $0.00 today and `/dashboard/cost` would under-report.
-      Needs a pricing entry, its own `agent_decision_log` rows, and the same cost-consent gate as
-      a Veo run.
+- [x] **Pick the image model and price it.** Model availability checked live against the API:
+      **no Imagen on this key** — image generation is Gemini image models via `generateContent`
+      (`gemini-3-pro-image`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`,
+      `gemini-2.5-flash-image`, plus `-preview` variants), the same call shape as the planner and
+      critic rather than Veo's long-running poll. Priced **per token, not per image**, in the same
+      `_TOKEN_PRICING` table as the text models — because that is how they actually bill, and a
+      per-image constant silently goes wrong when an image is a different size. The per-image
+      figure the consent UI shows is *derived* from that rate and a **measured** output-token count
+      (`gemini-3.1-flash-image` 1512 tokens, `gemini-3-pro-image` 1430), so there is one source of
+      truth rather than two copies. Recommended default `gemini-3.1-flash-image` at ~$0.045 an
+      image against `gemini-3-pro-image` at ~$0.172. †
+- [x] **Thinking tokens were missing from every cost figure.** Found while measuring the above, and
+      much worse than the thing it was blocking. All eight agent call sites read
+      `candidates_token_count` as their output count. Thinking tokens bill at the output rate and
+      are not in that field: a real `gemini-3.1-pro-preview` story call reported 568 candidate
+      tokens and **2611 thinking tokens**, so the logged cost was 4.4× under the real one. This
+      mattered more than an ordinary reporting bug because the budget ceiling refuses runs against
+      that number — an undercounting ledger spends past a cap the operator set and believes is
+      holding. Closed with `token_usage()` in `decision_log.py`, which computes output as
+      `total - prompt`; **RULE: every path that logs a model call reads its token counts through
+      it, never `usage_metadata` directly.** All eight sites converted, 12 tests over the fix and
+      the degraded-response cases. Of the $29.86 logged to date, $28.80 is Veo per-second billing
+      and unaffected; the $1.06 token portion is understated and cannot be recomputed, because the
+      missing number was never written down. `/dashboard/cost` says so on the page rather than
+      leaving it to be discovered.
 
 ### 6.1 — Idea to script
 

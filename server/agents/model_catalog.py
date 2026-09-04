@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from google import genai
 
-from agents.decision_log import get_veo_pricing
+from agents.decision_log import get_image_pricing, get_veo_pricing
 from genai_client import get_client
 
 ModelKind = Literal["video", "image"]
@@ -48,15 +48,30 @@ def _classify(name: str, actions: list[str]) -> ModelKind | None:
     return None
 
 
-def _entry(name: str, kind: ModelKind, veo_pricing: dict[str, float]) -> dict[str, Any]:
+def _entry(
+    name: str,
+    kind: ModelKind,
+    veo_pricing: dict[str, float],
+    image_pricing: dict[str, float],
+) -> dict[str, Any]:
+    """One catalogue row.
+
+    Video is priced per second of footage and image per generated image, because
+    that is how each is actually billed - a single "price" field would have to
+    pick one and lie about the other.
+    """
     per_second = veo_pricing.get(name) if kind == "video" else None
+    per_image = image_pricing.get(name) if kind == "image" else None
+    rate = per_second if kind == "video" else per_image
     return {
         "name": name,
         "kind": kind,
-        # Image models carry no rate yet - see the Phase 6.0 pricing task. Listed
-        # so they are visible, flagged so they cannot be spent against blind.
-        "priced": per_second is not None,
+        # A model with no rate is listed but unspendable: it would bill for real
+        # and log $0.00, which is the under-reporting the cost page exists to
+        # prevent. Better to say "no price on record" than to spend quietly.
+        "priced": rate is not None,
         "usd_per_second": per_second,
+        "usd_per_image": per_image,
         "recommended": RECOMMENDED.get(kind) == name,
         # Previews are real and usable; the caller may want to prefer stable.
         "preview": name.endswith("-preview"),
@@ -67,11 +82,12 @@ def _fallback() -> dict[str, Any]:
     """Everything we have a price for. Used when the listing call fails, so a
     blip in the API cannot leave an operator unable to start a run."""
     veo_pricing = get_veo_pricing()
+    image_pricing = get_image_pricing()
     return {
         "source": "fallback",
         "note": "Live model listing unavailable; showing only models with a price on record.",
-        "video": [_entry(name, "video", veo_pricing) for name in sorted(veo_pricing)],
-        "image": [],
+        "video": [_entry(n, "video", veo_pricing, image_pricing) for n in sorted(veo_pricing)],
+        "image": [_entry(n, "image", veo_pricing, image_pricing) for n in sorted(image_pricing)],
     }
 
 
@@ -83,6 +99,7 @@ async def get_model_catalog(*, force_refresh: bool = False) -> dict[str, Any]:
         return _cache  # type: ignore[return-value]
 
     veo_pricing = get_veo_pricing()
+    image_pricing = get_image_pricing()
 
     def _list() -> list[tuple[str, list[str]]]:
         client: genai.Client = get_client()
@@ -106,14 +123,13 @@ async def get_model_catalog(*, force_refresh: bool = False) -> dict[str, Any]:
     for name, actions in listed:
         kind = _classify(name, actions)
         if kind == "video":
-            video.append(_entry(name, kind, veo_pricing))
+            video.append(_entry(name, kind, veo_pricing, image_pricing))
         elif kind == "image":
-            image.append(_entry(name, kind, veo_pricing))
+            image.append(_entry(name, kind, veo_pricing, image_pricing))
 
-    # Cheapest first for video, so the price ladder reads in order; name order
-    # for image until there are rates to sort by.
+    # Cheapest first in both, so each price ladder reads in order.
     video.sort(key=lambda e: (e["usd_per_second"] is None, e["usd_per_second"] or 0, e["name"]))
-    image.sort(key=lambda e: e["name"])
+    image.sort(key=lambda e: (e["usd_per_image"] is None, e["usd_per_image"] or 0, e["name"]))
 
     catalog = {"source": "live", "note": None, "video": video, "image": image}
     _cache, _cached_at = catalog, time.monotonic()

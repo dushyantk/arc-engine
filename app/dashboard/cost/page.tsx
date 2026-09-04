@@ -91,6 +91,17 @@ export default async function CostPage() {
           time — the same rows the session log renders one run at a time. Nothing is
           estimated, projected or rounded up.
         </p>
+        {/* The page's whole claim is that these numbers are real, so the one way
+            they are known to be wrong has to be stated here rather than left for
+            someone to discover. */}
+        <p className="mt-3 max-w-[68ch] rounded-sm border border-warning/40 bg-warning/10 px-3 py-2 font-mono text-[11.5px] leading-relaxed text-warning">
+          Rows written before 2026-09-03 under-report token spend. Every agent counted
+          only the tokens in a model&rsquo;s answer, not the thinking tokens billed at the
+          same rate — measured at 4.4&times; on one real call. Video is billed per second
+          and is unaffected, which is the large majority of the total. The old rows cannot
+          be corrected, because the number that went missing was never written down; treat
+          anything before that date as a floor, not a figure.
+        </p>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

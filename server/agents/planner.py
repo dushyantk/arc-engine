@@ -15,7 +15,7 @@ import time
 
 from google.genai import types
 
-from agents.decision_log import estimate_token_cost, log_decision
+from agents.decision_log import estimate_token_cost, log_decision, token_usage
 from db.models import ReferenceAsset, Shot
 from genai_client import get_client
 from mcp_clients.clickhouse import clickhouse_mcp_session
@@ -166,9 +166,7 @@ async def plan_shot(
         )
     research_latency_ms = int((time.monotonic() - research_start) * 1000)
     research_text = research_response.text or ""
-    research_usage = research_response.usage_metadata
-    research_tokens_in = research_usage.prompt_token_count if research_usage else 0
-    research_tokens_out = research_usage.candidates_token_count if research_usage else 0
+    research_tokens_in, research_tokens_out = token_usage(research_response)
 
     log_decision(
         run_id=run_id,
@@ -201,9 +199,7 @@ async def plan_shot(
         ),
     )
     brief_latency_ms = int((time.monotonic() - brief_start) * 1000)
-    brief_usage = brief_response.usage_metadata
-    brief_tokens_in = brief_usage.prompt_token_count if brief_usage else 0
-    brief_tokens_out = brief_usage.candidates_token_count if brief_usage else 0
+    brief_tokens_in, brief_tokens_out = token_usage(brief_response)
 
     if brief_response.parsed is None:
         raise ValueError(f"Planner produced malformed ShotBrief JSON: {brief_response.text!r}")

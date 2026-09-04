@@ -16,7 +16,7 @@ import clickhouse_connect
 from google.genai import types
 from pydantic import BaseModel
 
-from agents.decision_log import estimate_token_cost, log_decision
+from agents.decision_log import estimate_token_cost, log_decision, token_usage
 from genai_client import get_client
 from models.contracts import ContinuityFingerprint, GenerationSettings, QCFinding, ShotStatus
 from retry import call_with_retry
@@ -234,9 +234,7 @@ async def extract_and_store_fingerprint(
         ),
     )
     latency_ms = int((time.monotonic() - start) * 1000)
-    usage = response.usage_metadata
-    tokens_in = usage.prompt_token_count if usage else 0
-    tokens_out = usage.candidates_token_count if usage else 0
+    tokens_in, tokens_out = token_usage(response)
 
     if response.parsed is None:
         raise ValueError(f"Fingerprint extraction produced malformed JSON: {response.text!r}")

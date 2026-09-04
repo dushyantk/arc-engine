@@ -15,7 +15,7 @@ import time
 
 from google.genai import types
 
-from agents.decision_log import estimate_token_cost, log_decision
+from agents.decision_log import estimate_token_cost, log_decision, token_usage
 from genai_client import get_client
 from models.contracts import ScriptDraft
 from retry import call_with_retry
@@ -67,9 +67,7 @@ async def write_script(*, idea: str, show_name: str, run_id: str) -> ScriptDraft
     )
     latency_ms = int((time.monotonic() - start) * 1000)
 
-    usage = response.usage_metadata
-    tokens_in = usage.prompt_token_count if usage and usage.prompt_token_count else 0
-    tokens_out = usage.candidates_token_count if usage and usage.candidates_token_count else 0
+    tokens_in, tokens_out = token_usage(response)
 
     log_decision(
         run_id=run_id,

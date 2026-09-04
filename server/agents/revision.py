@@ -7,7 +7,7 @@ import time
 
 from google.genai import types
 
-from agents.decision_log import estimate_token_cost, log_decision
+from agents.decision_log import estimate_token_cost, log_decision, token_usage
 from db.models import ReferenceAsset
 from genai_client import get_client
 from models.contracts import QCFinding, RevisionInstruction
@@ -74,9 +74,7 @@ async def revise_shot(
         ),
     )
     latency_ms = int((time.monotonic() - start) * 1000)
-    usage = response.usage_metadata
-    tokens_in = usage.prompt_token_count if usage else 0
-    tokens_out = usage.candidates_token_count if usage else 0
+    tokens_in, tokens_out = token_usage(response)
 
     if response.parsed is None:
         raise ValueError(f"Revision agent produced malformed instruction JSON: {response.text!r}")
