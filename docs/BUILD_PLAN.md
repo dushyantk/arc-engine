@@ -748,6 +748,28 @@ than only by a query. Two things the schema promised were true only in the datab
 
 ### Hosting prerequisites
 
+- [x] **The single-run lock moved out of process memory.** It was a module global in
+      `routes/runs.py` — correct on one machine, silently wrong on two: each instance believed it
+      was idle, so two operators could start two billed runs at the same moment and neither would
+      be refused. Nothing would have noticed until the bill. `server/run_lock.py` puts it in
+      Postgres, keyed on a constant primary key so *the database* picks the winner.
+      Two things it would be easy to get subtly wrong, and the tests target both. **Acquisition is
+      atomic** — a read-then-write has a gap two callers can both pass, so the whole claim is one
+      `INSERT ... ON CONFLICT` whose `WHERE` decides it; a ten-way concurrent race asserts exactly
+      one winner, which the old global would have failed and every simpler test would have passed.
+      **A dead holder cannot block forever** — a killed process cannot release its lock, and a lock
+      nobody can release is worse than none (every future run refused, no fix but a manual DELETE),
+      so a live run refreshes a heartbeat on its own task and a claim gone quiet for 90s can be
+      taken over. `release` is scoped by `run_id`, so an overran run cannot delete its successor's
+      claim. Verified across processes: a second process took the lock and the running API both
+      reported it in `/runs/status` and refused a new run with 409; then a real run showed the
+      heartbeat holding at 7–10s and releasing cleanly. The dashboard now shows a run started on
+      another instance, which it structurally could not before.
+- [x] **The model-catalogue cache stays per-instance, deliberately.** It is the other module
+      global, and unlike the lock it is only a read cache with a 600s TTL: two instances mean two
+      caches and at most a couple more listing calls, with no correctness consequence. Moving it
+      would add shared state to save nothing.
+
 - [x] **Single-operator auth (Better Auth).** No sign-up route: `disableSignUp` is the whole access
       model, and `pnpm auth:create-operator` is the only path that makes an account. Sessions last
       12 hours. The landing page stays public.

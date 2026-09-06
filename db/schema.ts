@@ -316,3 +316,31 @@ export const verification = pgTable("verification", {
   createdAt: timestamp("created_at").$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date()),
 });
+
+// The single-run lock, in Postgres rather than in one process's memory.
+//
+// It was a module global, which is correct on one machine and silently wrong on
+// two: each instance believed it was idle, so two operators could start two
+// billed runs at the same moment and neither would be refused. That is the last
+// thing standing between this and more than one Fly machine.
+//
+// Deliberately one row for the whole system, not one per show. The lock exists
+// because a run is expensive and the operator should be doing one thing at a
+// time, which is a claim about the person, not about a show.
+export const runLocks = pgTable("run_locks", {
+  // Always the literal 'global'. A primary key on a constant is what makes
+  // "at most one run" a database guarantee rather than an application promise:
+  // two simultaneous INSERTs cannot both win.
+  lockKey: text("lock_key").primaryKey(),
+  runId: text("run_id").notNull(),
+  shotCode: text("shot_code").notNull(),
+  mode: text("mode").notNull(),
+  // Which process holds it. Only for diagnosis - "who is holding this?" is
+  // unanswerable otherwise once there is more than one instance.
+  ownerId: text("owner_id").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  // Refreshed while the run is alive. A process that dies cannot release its
+  // lock, so the lock has to be able to expire on its own or one crash would
+  // block every future run forever.
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).notNull().defaultNow(),
+});

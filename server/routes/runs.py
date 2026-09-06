@@ -17,11 +17,14 @@ after). /recritique never touches Veo, so it has no such gate.
 """
 
 import asyncio
+import sys
+from collections.abc import Awaitable
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import run_lock
 from agents.budget import evaluate_budget, read_ceiling, total_spent_usd
 from agents.decision_log import get_veo_pricing, new_run_id
 from agents.generation import TIERS_WITHOUT_REFERENCE_IMAGES, reference_support_error
@@ -89,33 +92,98 @@ async def _require_tier_supports_references(
         raise HTTPException(status_code=409, detail=problem)
 
 
-_active: dict[str, str] | None = None
+async def _claim_run(shot_code: str, mode: str, run_id: str) -> None:
+    """Takes the single-run lock, or refuses with who holds it.
 
+    Replaces a module global, which was correct on one machine and silently
+    wrong on two - each instance thought it was idle, so two operators could
+    start two billed runs at once and neither would be refused. See run_lock.py.
 
-def _require_idle() -> None:
-    if _active is not None:
+    Claim and check are one statement there, so this cannot lose a race between
+    deciding and claiming.
+    """
+    db = Database()
+    await db.connect()
+    try:
+        held = await run_lock.try_acquire(
+            db.pool, run_id=run_id, shot_code=shot_code, mode=mode
+        )
+    finally:
+        await db.close()
+
+    if held is not None:
         raise HTTPException(
             status_code=409,
-            detail=f"A run is already in progress ({_active['mode']} on {_active['shot_code']}). Wait for it to finish.",
+            detail=(
+                f"A run is already in progress ({held.mode} on {held.shot_code}). "
+                "Wait for it to finish."
+            ),
         )
 
 
-def _set_active(shot_code: str, mode: str, run_id: str) -> None:
-    global _active
-    # run_id included so a caller can tell *which* logged run is the live one -
-    # the session list has no other way to distinguish a run still in flight
-    # from one that finished, since both are just rows in agent_decision_log.
-    _active = {"shot_code": shot_code, "mode": mode, "run_id": run_id}
+async def _run_with_lock(run_id: str, work: Awaitable[object]) -> None:
+    """Runs the work while keeping the lock alive, and releases it either way.
 
+    The heartbeat is its own task on purpose: the work blocks for minutes at a
+    time - a 390s critique is normal - and a claim refreshed only between steps
+    would look abandoned right in the middle of a healthy run.
+    """
+    stop = asyncio.Event()
 
-def _clear_active() -> None:
-    global _active
-    _active = None
+    async def _beat() -> None:
+        db = Database()
+        await db.connect()
+        try:
+            while not stop.is_set():
+                try:
+                    await asyncio.wait_for(
+                        stop.wait(), timeout=run_lock.HEARTBEAT_SECONDS
+                    )
+                except TimeoutError:
+                    pass
+                if stop.is_set():
+                    return
+                if not await run_lock.heartbeat(db.pool, run_id=run_id):
+                    # The lock is no longer ours. Nothing to do about the work
+                    # already in flight, but say so rather than pretend.
+                    print(
+                        f"WARNING: run {run_id} no longer holds the run lock; "
+                        "another instance took it over.",
+                        file=sys.stderr,
+                    )
+                    return
+        finally:
+            await db.close()
+
+    beat = asyncio.create_task(_beat())
+    try:
+        await work
+    finally:
+        stop.set()
+        beat.cancel()
+        db = Database()
+        await db.connect()
+        try:
+            await run_lock.release(db.pool, run_id=run_id)
+        finally:
+            await db.close()
 
 
 @router.get("/status")
-def get_status() -> dict[str, dict[str, str] | None]:
-    return {"active": _active}
+async def get_status() -> dict[str, dict[str, str] | None]:
+    """What is running right now, across every instance.
+
+    Read from the lock table rather than from this process's memory: with more
+    than one instance, a run started on another one is still a run, and the
+    session list has to show it.
+    """
+    db = Database()
+    await db.connect()
+    try:
+        active = await run_lock.current(db.pool)
+    finally:
+        await db.close()
+    return {"active": active.as_dict() if active else None}
 
 
 @router.get("/models")
@@ -174,20 +242,17 @@ async def start_generate(req: GenerateRequest) -> RunStartedResponse:
         )
     _require_budget(req.model_tier)
     await _require_tier_supports_references(req.shot_code, req.show_name, req.model_tier)
-    _require_idle()
-
     run_id = new_run_id()
-    _set_active(req.shot_code, "generate", run_id)
+    await _claim_run(req.shot_code, "generate", run_id)
 
-    async def _task() -> None:
-        try:
-            await run_generate(
+    asyncio.create_task(
+        _run_with_lock(
+            run_id,
+            run_generate(
                 req.shot_code, req.scene_goal, req.show_name, run_id, req.model_tier
-            )
-        finally:
-            _clear_active()
-
-    asyncio.create_task(_task())
+            ),
+        )
+    )
     return RunStartedResponse(
         run_id=run_id, detail=f"Real Veo generation started for {req.shot_code}."
     )
@@ -201,20 +266,15 @@ class RecritiqueRequest(BaseModel):
 
 @router.post("/recritique", response_model=RunStartedResponse)
 async def start_recritique(req: RecritiqueRequest) -> RunStartedResponse:
-    _require_idle()
-
     run_id = new_run_id()
-    _set_active(req.shot_code, "recritique", run_id)
+    await _claim_run(req.shot_code, "recritique", run_id)
 
-    async def _task() -> None:
-        try:
-            await run_recritique(
-                req.shot_code, req.version_number, None, req.show_name, run_id
-            )
-        finally:
-            _clear_active()
-
-    asyncio.create_task(_task())
+    asyncio.create_task(
+        _run_with_lock(
+            run_id,
+            run_recritique(req.shot_code, req.version_number, None, req.show_name, run_id),
+        )
+    )
     return RunStartedResponse(
         run_id=run_id,
         detail=f"Recritique started for {req.shot_code} v{req.version_number} (no Veo cost).",
@@ -236,18 +296,16 @@ async def start_reuse_prompt(req: ReusePromptRequest) -> RunStartedResponse:
             detail="confirm_cost must be true - this triggers a real, billed Veo call.",
         )
     _require_budget(None)
-    _require_idle()
 
     run_id = new_run_id()
-    _set_active(req.shot_code, "reuse_prompt", run_id)
+    await _claim_run(req.shot_code, "reuse_prompt", run_id)
 
-    async def _task() -> None:
-        try:
-            await run_reuse_prompt(req.shot_code, req.source_version, req.show_name, run_id)
-        finally:
-            _clear_active()
-
-    asyncio.create_task(_task())
+    asyncio.create_task(
+        _run_with_lock(
+            run_id,
+            run_reuse_prompt(req.shot_code, req.source_version, req.show_name, run_id),
+        )
+    )
     return RunStartedResponse(
         run_id=run_id,
         detail=f"Reuse-prompt run started for {req.shot_code} from v{req.source_version}.",
