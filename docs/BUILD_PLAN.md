@@ -509,16 +509,12 @@ above, not forgotten).
       a fresh install. Zero calls is not a cheap run, it is no run, so the page now says that
       plainly and links to the dashboard. Verified both ways: empty log renders the honest state,
       the real instance still renders 115 calls / $29.96.
-- [ ] README with quickstart commands and the demo script (3-shot railway sequence, per the pitch).
-      **Quickstart half done** in a892794 — the README was telling people to supply Vertex
-      credentials the product stopped needing once Veo turned out to be reachable through the
-      Gemini Developer API; it now carries the real prerequisites (including ffmpeg and the two
-      schema pushes), the ports table, the loop, every test command, and the scriptable run
-      invocations with flags checked against the actual argparse. **Still open: the demo script
-      itself** — the walkthrough for showing the product start to finish. Deliberately left with
-      the beta-release item below, since a demo script is only worth writing against the state the
-      release actually ships. Note the original figure here was stale: the sequence took 9 real
-      generations, not 7.
+- [x] **README describes the product that now exists, with a demo script.** It had been accurate
+      but a phase behind: nothing about idea → script → breakdown → sheets, and nothing about the
+      spending ceiling. Both added, plus a seven-step demo script walked end to end against real
+      data — every step verified rendering, and every step free except the final billed run, which
+      says so. The claim that a shot can be approved and exported is real: two candidates carry
+      real footage and `e2e/approve-export.spec.ts` covers that path.
 - [ ] Beta release: tag, confirm demo runs unattended start to finish
 
 ## Phase 6 — Top-down planning (idea → script → breakdown → assets → shots)
