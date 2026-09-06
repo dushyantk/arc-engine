@@ -52,9 +52,14 @@ from uuid import UUID
 from minio.error import S3Error
 
 from agents.approval import MAX_REVISION_ROUNDS, evaluate, resolve_shot_status
+from agents.budget import require_budget_or_exit
 from agents.critic import critique_shot_version
 from agents.decision_log import get_veo_pricing, new_run_id
-from agents.generation import DEFAULT_DURATION_SECONDS, generate_shot_version
+from agents.generation import (
+    DEFAULT_DURATION_SECONDS,
+    generate_shot_version,
+    reference_support_error,
+)
 from agents.planner import plan_shot
 from agents.production_memory import (
     extract_and_store_fingerprint,
@@ -70,9 +75,19 @@ from models.contracts import GenerationSettings, QCFinding, ShotBrief, ShotStatu
 from storage.minio_client import get_bytes, get_client, put_bytes
 from video_frames import extract_poster_frame
 
+# Every real Veo shot this project has generated has run ~8 seconds. Used only to
+# turn a per-second rate into a pre-flight estimate for the ceiling check; the
+# figure logged afterwards is the real billed duration.
+ESTIMATE_SECONDS = 8
+
+
 
 def _print_repair_ladder(
-    findings: list[QCFinding], *, prior_failed: frozenset[str], renders_left: int
+    findings: list[QCFinding],
+    *,
+    prior_failed: frozenset[str],
+    renders_left: int,
+    locked_reference_count: int,
 ) -> None:
     """Recommend how to retry, cheapest first, with what each attempt costs.
 
@@ -81,7 +96,10 @@ def _print_repair_ladder(
     automatic repair is off by default.
     """
     steps = repair_steps(
-        findings, renders_left=renders_left, prior_failed_categories=prior_failed
+        findings,
+        renders_left=renders_left,
+        prior_failed_categories=prior_failed,
+        locked_reference_count=locked_reference_count,
     )
     if not steps:
         return
@@ -280,6 +298,7 @@ async def _generate_store_and_critique(
             findings,
             prior_failed=prior_failed,
             renders_left=max(0, MAX_REVISION_ROUNDS - next_version),
+            locked_reference_count=len(reference_assets),
         )
 
 
@@ -375,6 +394,7 @@ async def recritique(
             findings,
             prior_failed=prior_failed,
             renders_left=max(0, MAX_REVISION_ROUNDS - version_number),
+            locked_reference_count=len(reference_assets),
         )
 
     await db.close()
@@ -465,6 +485,13 @@ async def run(
                 f"{shot_code} has no brief authored yet — pass --goal, or author one in the dashboard first."
             )
 
+    # Before the planner, not after: this combination fails as an opaque provider
+    # 400 at generation time, by which point the planning call has already been
+    # billed. Costs nothing to check here.
+    unsupported = reference_support_error(model_tier, len(reference_assets))
+    if unsupported:
+        raise SystemExit(f"Refusing to run: {unsupported}")
+
     run_id = run_id or new_run_id()
     print(f"run_id={run_id}")
     print("planning...")
@@ -510,6 +537,15 @@ if __name__ == "__main__":
         default=None,
         help="Scene goal. If omitted, uses the shot's already-authored brief (dashboard or a prior --goal); errors if neither exists. If given, persists as the shot's brief.",
     )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "Veo tier to generate on, overriding the planner's choice "
+            "(veo-3.1-lite-generate-preview is the cheapest). Without this the CLI "
+            "spends whatever the planner picked, which is usually the dearest."
+        ),
+    )
     parser.add_argument("--recritique-version", type=int, default=None)
     parser.add_argument("--reuse-prompt-from-version", type=int, default=None)
     parser.add_argument("--video-override", type=Path, default=None)
@@ -522,5 +558,12 @@ if __name__ == "__main__":
     elif args.reuse_prompt_from_version is not None:
         asyncio.run(reuse_prompt(args.shot, args.reuse_prompt_from_version, args.show))
     else:
-        asyncio.run(run(args.shot, args.goal, args.show))
+        # The same ceiling the dashboard enforces. Without this the scripted path
+        # the README documents spent with no cap at all, so DAILIES_BUDGET_USD
+        # looked enforced and was not. Priced at the dearest tier when --model is
+        # not given, because the planner picks the model and has not run yet.
+        pricing = get_veo_pricing()
+        per_second = pricing.get(args.model or "", max(pricing.values(), default=0.0))
+        require_budget_or_exit(per_second * ESTIMATE_SECONDS)
+        asyncio.run(run(args.shot, args.goal, args.show, model_tier=args.model))
     sys.exit(0)

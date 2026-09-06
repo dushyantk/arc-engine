@@ -13,6 +13,13 @@ from contextlib import asynccontextmanager
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
+import mcp_shim
+
+# Installed here because this module owns the MCP seam: anything that opens a
+# session goes through it, so no caller has to remember. See mcp_shim for why a
+# patch is the right shape for this and a session wrapper is not.
+mcp_shim.install()
+
 
 def _server_params() -> StdioServerParameters:
     return StdioServerParameters(

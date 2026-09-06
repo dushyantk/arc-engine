@@ -395,6 +395,13 @@ export async function getShotDetail(
   // Where this shot came from, when it was proposed rather than typed. Read
   // here so the page can link to the actual proposal instead of printing an id:
   // provenance nobody can follow is a column, not an answer.
+  // Locked references only. A tier that cannot use them is refused before a run
+  // starts, and the panel has to know the count to say so before the click.
+  const lockedReferences = await db
+    .select({ id: referenceAssets.id })
+    .from(referenceAssets)
+    .where(and(eq(referenceAssets.showId, showId), isNotNull(referenceAssets.lockedAt)));
+
   const [origin] = shot.createdFromBreakdownId
     ? await db
         .select({
@@ -421,6 +428,7 @@ export async function getShotDetail(
     show,
     versions: versionsWithFindings,
     origin: origin ?? null,
+    lockedReferenceCount: lockedReferences.length,
   };
 }
 

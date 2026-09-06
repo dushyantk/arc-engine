@@ -7,6 +7,41 @@ part of any test or startup path; generate_shot_version() only executes
 when a caller explicitly invokes it, on purpose, knowing it costs money.
 """
 
+
+# Tiers that reject `referenceImages` outright. Established by a real 400 from
+# the API on 2026-09-05, generating SH010 of Lantern Signal against one locked
+# reference:
+#
+#   400 INVALID_ARGUMENT - `referenceImages` isn't supported by this model.
+#
+# Only Lite is listed because only Lite has been observed to refuse. Do not add a
+# tier here on the assumption it behaves the same; add it when the API says so.
+TIERS_WITHOUT_REFERENCE_IMAGES = frozenset({"veo-3.1-lite-generate-preview"})
+
+
+def reference_support_error(model_tier: str | None, locked_reference_count: int) -> str | None:
+    """Why this tier cannot generate this shot, or None if it can.
+
+    RULE: every path that starts a generation calls this before planning. The
+    combination is not merely unsupported downstream - it fails as an opaque
+    provider error *after* the planner has already been billed, which is the
+    worst place to discover it. Refusing up front costs nothing.
+
+    Says what is true on both sides and what the operator can actually do about
+    it, rather than repeating the provider's message, which names a field no one
+    using this product has heard of.
+    """
+    if not model_tier or model_tier not in TIERS_WITHOUT_REFERENCE_IMAGES:
+        return None
+    if locked_reference_count == 0:
+        return None
+    return (
+        f"{model_tier} cannot use locked references, and this show has "
+        f"{locked_reference_count} of them. A run on this tier would ignore the canon "
+        f"the shot is meant to match, so it is refused rather than generating something "
+        f"unbound. Use a tier that supports references, or unlock them first."
+    )
+
 import asyncio
 import time
 

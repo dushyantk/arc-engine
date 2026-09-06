@@ -87,3 +87,51 @@ class TestTargeting:
     def test_the_reason_names_what_it_is_targeting(self) -> None:
         steps = repair_steps([finding("fail", "hero_prop", "critical")], renders_left=1)
         assert "hero_prop" in steps[0].reason
+
+
+class TestTiersThatCannotUseCanon:
+    """A show with locked references cannot run on a tier that rejects them.
+    The ladder must not recommend one: advice that the runtime then refuses is
+    worse than no advice, because it reads as a supported path.
+
+    Regression from the ladder's first real outing — it opened with
+    "reroll on veo-3.1-lite-generate-preview (~$0.40)" for a shot whose show had
+    one locked reference, which run_session refuses outright.
+    """
+
+    def test_lite_is_not_recommended_when_references_are_locked(self) -> None:
+        steps = repair_steps(
+            [finding("fail", "temporal_stability")],
+            renders_left=3,
+            locked_reference_count=1,
+        )
+        assert steps, "should still recommend something, just not Lite"
+        assert all("lite" not in s.model_tier for s in steps)
+
+    def test_lite_is_still_recommended_when_nothing_is_locked(self) -> None:
+        """The constraint is about this show's canon, not about the tier being
+        bad — with no references the cheap reroll is the right first move."""
+        steps = repair_steps(
+            [finding("fail", "temporal_stability")],
+            renders_left=3,
+            locked_reference_count=0,
+        )
+        assert any("lite" in s.model_tier for s in steps)
+
+    def test_the_ladder_stays_cheapest_first_after_filtering(self) -> None:
+        steps = repair_steps(
+            [finding("fail", "temporal_stability")],
+            renders_left=3,
+            locked_reference_count=2,
+        )
+        tiers = [s.model_tier for s in steps]
+        assert tiers == sorted(tiers, key=lambda t: TIER_ORDER.index(t))
+
+    def test_no_usable_tier_recommends_nothing_rather_than_something_impossible(self) -> None:
+        steps = repair_steps(
+            [finding("fail", "temporal_stability")],
+            renders_left=3,
+            tier_order=("veo-3.1-lite-generate-preview",),
+            locked_reference_count=1,
+        )
+        assert steps == []

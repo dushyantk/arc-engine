@@ -515,7 +515,33 @@ above, not forgotten).
       data — every step verified rendering, and every step free except the final billed run, which
       says so. The claim that a shot can be approved and exported is real: two candidates carry
       real footage and `e2e/approve-export.spec.ts` covers that path.
-- [ ] Beta release: tag, confirm demo runs unattended start to finish
+- [x] **Demo runs unattended start to finish.** Proven by the Lantern Signal run above rather than
+      asserted. Three things broke on the way, each a real defect:
+      **(1) The planner died before any model call.** `mcp 2.0.0` emits `"additionalProperties":
+      false` on its tools — legal JSON Schema — and google-genai's MCP adapter recurses into that
+      keyword assuming a schema object, so it called `.items()` on a bool. Wrapping the session to
+      sanitise schemas made it worse, because `_extra_utils` selects its no-deepcopy path with
+      `isinstance(tool, ClientSession)` and a proxy fails that check, producing `cannot pickle
+      '_asyncio.Task'`. Both mechanisms were read out of the installed source, not guessed. Fixed
+      by `server/mcp_shim.py`, which widens the upstream filter to pass a boolean through, with
+      tests that fail loudly if the internals it patches move.
+      **(2) The Lite tier rejects `referenceImages`.** Established by a real 400, after the
+      planner had already been billed $0.03 — the worst place to learn it.
+      `reference_support_error()` now refuses the combination before planning, in the CLI, the
+      HTTP route and the run panel, saying what is true on both sides instead of repeating a
+      provider message that names a field no operator has heard of.
+      **(3) The repair ladder recommended a tier the runtime refuses.** Its first real outing
+      opened with "reroll on Lite (~$0.40)" for a show with a locked reference. Advice that cannot
+      be taken is worse than none, because it reads as a supported path. The ladder now filters
+      tiers by the show's canon.
+- [x] **The CLI enforced no budget at all.** Found while setting up the run above:
+      `_require_budget` lived in the HTTP route, and `run_session.py` calls `run()` directly — so
+      the scripted path the README documents spent with no ceiling while the dashboard enforced
+      one. `DAILIES_BUDGET_USD` looked enforced and was not. `require_budget_or_exit()` is the
+      terminal-shaped twin of the HTTP gate; both wrap `evaluate_budget()` and neither
+      reimplements it. The CLI also gained `--model`, without which it could not pick a cheap tier
+      at all.
+- [ ] Beta release: tag
 
 ## Phase 6 — Top-down planning (idea → script → breakdown → assets → shots)
 
@@ -702,11 +728,12 @@ than only by a query. Two things the schema promised were true only in the datab
 
 ### 6.4 — Prove the chain
 
-- [x] End-to-end on a throwaway show ("Lantern Signal"): idea prompt → script → approval →
-      breakdown → 3 sequences and 7 shots with provenance → resolvable by the run trigger. $0.045
-      for the whole chain. Carrying one of those shots through to a real Veo generation is the
-      remaining half of this item and is deliberately deferred — it is the same existing loop,
-      already proven, and costs $3.20 to re-demonstrate.
+- [x] End-to-end on a throwaway show ("Lantern Signal"), **now including the real generation**:
+      idea prompt → script → approval → breakdown → 3 sequences and 7 shots with provenance →
+      generated reference sheet → **locked as canon** → planned against it through the ClickHouse
+      MCP → generated on Fast, image-conditioned on 1/1 references → critiqued → approved. SH010 v1
+      is real footage a human never authored a word of. $1.05 for the generation leg, $0.96 of it
+      Veo. Three defects only a real run could surface, all fixed and covered below.
       **Two defects the run found that reasoning had not.** The agent was told to restart shot
       numbering per sequence, producing three SH010s in one show; they materialised fine and then
       could not be run at all, since `find_shot_by_code` resolves by code. Fixed in the prompt and

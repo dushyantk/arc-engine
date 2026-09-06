@@ -35,7 +35,7 @@ export default async function ShotDetailPage({
 
   if (!detail) notFound();
 
-  const { shot, sequence, show, versions, origin } = detail;
+  const { shot, sequence, show, versions, origin, lockedReferenceCount } = detail;
   const updateBriefForShot = updateShotBrief.bind(
     null,
     showId,
@@ -77,6 +77,7 @@ export default async function ShotDetailPage({
             shotCode={shot.code}
             showName={show?.name ?? ""}
             hasBrief={Boolean(shot.brief)}
+            lockedReferenceCount={lockedReferenceCount}
             spend={{
               calls: shotSpend.calls,
               spendUsd: shotSpend.spendUsd,

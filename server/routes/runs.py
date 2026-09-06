@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from agents.budget import evaluate_budget, read_ceiling, total_spent_usd
 from agents.decision_log import get_veo_pricing, new_run_id
+from agents.generation import TIERS_WITHOUT_REFERENCE_IMAGES, reference_support_error
 from agents.model_catalog import get_model_catalog
 from agents.production_memory import (
     extract_and_store_fingerprint,
@@ -58,6 +59,34 @@ def _require_budget(model_tier: str | None) -> None:
     pricing = get_veo_pricing()
     per_second = pricing.get(model_tier or "", max(pricing.values(), default=0.0))
     require_budget(per_second * _ESTIMATE_SECONDS)
+
+
+async def _require_tier_supports_references(
+    shot_code: str, show_name: str | None, model_tier: str | None
+) -> None:
+    """Refuse a tier that cannot use this show's locked references.
+
+    Checked here as well as in run_session because both are entrypoints to the
+    same spend, and the failure it prevents is a provider 400 raised only after
+    the planner has been billed - see agents/generation.reference_support_error.
+    """
+    if not model_tier or model_tier not in TIERS_WITHOUT_REFERENCE_IMAGES:
+        return
+    db = Database()
+    await db.connect()
+    try:
+        _, show, _ = await db.find_shot_by_code(shot_code, show_name)
+        locked = await db.get_reference_assets(show.id)
+    except LookupError:
+        # Not this gate's job to report a missing shot; the run path below does
+        # that with the context to say it properly.
+        return
+    finally:
+        await db.close()
+
+    problem = reference_support_error(model_tier, len(locked))
+    if problem:
+        raise HTTPException(status_code=409, detail=problem)
 
 
 _active: dict[str, str] | None = None
@@ -144,6 +173,7 @@ async def start_generate(req: GenerateRequest) -> RunStartedResponse:
             detail="confirm_cost must be true - this triggers a real, billed Veo call.",
         )
     _require_budget(req.model_tier)
+    await _require_tier_supports_references(req.shot_code, req.show_name, req.model_tier)
     _require_idle()
 
     run_id = new_run_id()

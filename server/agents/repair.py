@@ -25,6 +25,7 @@ still authorises the spend.
 from dataclasses import dataclass
 from typing import Literal
 
+from agents.generation import TIERS_WITHOUT_REFERENCE_IMAGES
 from models.contracts import QCFinding
 
 RepairStrategy = Literal["reroll", "revise"]
@@ -64,14 +65,26 @@ def repair_steps(
     renders_left: int,
     prior_failed_categories: frozenset[str] = frozenset(),
     tier_order: tuple[str, ...] = TIER_ORDER,
+    locked_reference_count: int = 0,
 ) -> list[RepairStep]:
     """An ordered, bounded ladder of retries for a failed shot.
 
     `prior_failed_categories` is what already failed on earlier versions of this
     shot. A category in there has reproduced, so re-rolling it is wasted money.
+
+    `locked_reference_count` drops tiers that cannot accept this show's canon.
+    Filtered here rather than by each caller: the ladder's first real outing
+    recommended "reroll on Lite (~$0.40)" for a shot whose show had a locked
+    reference, which the runtime then refuses - advice that cannot be taken is
+    worse than no advice, because it reads as a supported path.
     """
     if renders_left <= 0:
         return []
+
+    if locked_reference_count > 0:
+        tier_order = tuple(t for t in tier_order if t not in TIERS_WITHOUT_REFERENCE_IMAGES)
+        if not tier_order:
+            return []
 
     target = worst_failure(findings)
     if target is None:

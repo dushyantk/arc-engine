@@ -115,3 +115,24 @@ def total_spent_usd() -> float:
     if not rows or rows[0][0] is None:
         return 0.0
     return float(rows[0][0])
+
+
+def require_budget_or_exit(estimate_usd: float) -> None:
+    """The ceiling gate for command-line entrypoints.
+
+    The HTTP routes get this through routes/gates.py; a CLI cannot raise an
+    HTTPException at a terminal, so it exits non-zero with the same message.
+    Both wrap evaluate_budget() rather than re-deriving the check.
+
+    RULE: every path that can trigger a billed model call passes through one of
+    the two wrappers before making it. run_session.py went without, so the
+    scripted path the README documents spent with no ceiling at all while the
+    dashboard enforced one - the cap looked enforced and was not.
+    """
+    decision = evaluate_budget(
+        spent_usd=total_spent_usd(),
+        estimate_usd=estimate_usd,
+        ceiling_usd=read_ceiling(),
+    )
+    if not decision.allowed:
+        raise SystemExit(f"Refusing to run: {decision.reason}")

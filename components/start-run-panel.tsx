@@ -59,15 +59,26 @@ export type ShotSpendSummary = {
   codeIsAmbiguous: boolean;
 };
 
+// Tiers the API rejects `referenceImages` on. Mirrors
+// TIERS_WITHOUT_REFERENCE_IMAGES in server/agents/generation.py, which carries
+// the real 400 that established it. The runtime refuses this combination
+// anyway; this exists so the refusal is visible before the click rather than
+// after a planning call has been billed.
+const TIERS_WITHOUT_REFERENCE_IMAGES = new Set(["veo-3.1-lite-generate-preview"]);
+
 export function StartRunPanel({
   shotCode,
   showName,
   hasBrief,
   spend,
+  lockedReferenceCount,
 }: {
   shotCode: string;
   showName: string;
   hasBrief: boolean;
+  /** Canon this show is held to. A tier that cannot accept references is not
+   *  offered while any exist — it would generate something unbound. */
+  lockedReferenceCount: number;
   /** What this shot and the whole system have cost so far, so the consent
    *  checkbox below is an informed one rather than a bare confirmation. */
   spend?: ShotSpendSummary;
@@ -112,6 +123,10 @@ export function StartRunPanel({
   const selected = catalog?.video.find((m) => m.name === tier) ?? null;
   const perSecond = selected?.usd_per_second ?? null;
   const estimate = perSecond !== null ? perSecond * ASSUMED_SECONDS : null;
+
+  const tierRejectsReferences = (name: string) =>
+    lockedReferenceCount > 0 && TIERS_WITHOUT_REFERENCE_IMAGES.has(name);
+  const selectedRejectsReferences = tierRejectsReferences(tier);
 
   async function handleStart() {
     setSubmitting(true);
@@ -197,16 +212,21 @@ export function StartRunPanel({
                       value={model.name}
                       checked={tier === model.name}
                       onChange={() => setTier(model.name)}
-                      // An unpriced model would bill for real and log $0.00.
-                      // Not selectable until it has a rate.
-                      disabled={!model.priced}
+                      // Unpriced would bill for real and log $0.00; a tier that
+                      // cannot take this show's references would generate
+                      // something unbound. Neither is selectable.
+                      disabled={!model.priced || tierRejectsReferences(model.name)}
                     />
                     {TIER_LABELS[model.name] ?? model.name}
                     {model.recommended ? (
                       <span className="font-mono text-[10px] text-primary">DEFAULT</span>
                     ) : null}
                   </span>
-                  {model.priced && model.usd_per_second !== null ? (
+                  {tierRejectsReferences(model.name) ? (
+                    <span className="font-mono text-xs text-warning">
+                      cannot use locked references
+                    </span>
+                  ) : model.priced && model.usd_per_second !== null ? (
                     <span className="font-mono text-xs text-muted-foreground">
                       ${(model.usd_per_second * ASSUMED_SECONDS).toFixed(2)} for{" "}
                       {ASSUMED_SECONDS}s
@@ -272,6 +292,14 @@ export function StartRunPanel({
             </p>
           ) : null}
 
+          {selectedRejectsReferences ? (
+            <p className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11.5px] leading-relaxed text-destructive">
+              This tier cannot use the {lockedReferenceCount} locked reference
+              {lockedReferenceCount === 1 ? "" : "s"} this show is held to, so a run on it
+              would ignore the canon the shot is meant to match. Pick another tier.
+            </p>
+          ) : null}
+
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -293,7 +321,9 @@ export function StartRunPanel({
             // estimate is null when the catalogue has not answered yet or the
             // selected model has no rate - either way there is no informed cost
             // to consent to, so the run cannot start.
-            disabled={!confirmed || submitting || estimate === null}
+            disabled={
+              !confirmed || submitting || estimate === null || selectedRejectsReferences
+            }
           >
             {submitting ? (
               <>

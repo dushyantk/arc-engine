@@ -6,6 +6,10 @@ spend. Do not re-derive either check inline - the Veo path and the image path
 had different pricing units and would otherwise have grown two copies of the
 same ceiling logic, which is how one of them ends up not enforcing it.
 
+Command-line entrypoints use `agents.budget.require_budget_or_exit()` instead,
+which is the same check with a terminal-shaped failure. Both wrap
+`evaluate_budget()`; neither reimplements it.
+
 The gates raise HTTP errors because refusing to spend is an answer to a request,
 not an internal failure: 402 for a ceiling breach, 400 for missing consent.
 """
