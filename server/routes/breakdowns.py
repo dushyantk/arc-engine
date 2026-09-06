@@ -6,10 +6,11 @@ Two endpoints on purpose. `/propose` is cheap text and writes only the proposal;
 nobody can materialise a shot list they have not been shown.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from agents.breakdown import break_down
 from agents.decision_log import new_run_id
@@ -155,6 +156,68 @@ class PlanResponse(BaseModel):
     status: str
     breakdown: SceneBreakdown
     plan: MaterialisationPlan
+
+
+class BreakdownSummary(BaseModel):
+    """One past proposal, enough to read it without re-planning it."""
+
+    breakdown_id: UUID
+    version_number: int
+    status: str
+    created_at: datetime
+    materialised_at: datetime | None
+    sequence_count: int
+    shot_count: int
+    asset_count: int
+    breakdown: SceneBreakdown
+
+
+@router.get("/{show_id}/history", response_model=list[BreakdownSummary])
+async def history(show_id: UUID) -> list[BreakdownSummary]:
+    """Every breakdown ever proposed for this show's approved script.
+
+    The table exists so a proposal that was superseded stays readable next to
+    the one that was taken, and so a shot's `created_from_breakdown_id` points
+    at something a person can actually open. Returning only the latest made both
+    of those true in the database and false in the product.
+
+    Not re-planned against live state - these are historical proposals, and a
+    plan computed now would describe what re-applying an old breakdown would do
+    today, which is a different and misleading question.
+    """
+    db = Database()
+    await db.connect()
+    try:
+        script = await db.get_approved_script(show_id)
+        if script is None:
+            return []
+        rows = await db.get_breakdowns(script.id)
+    finally:
+        await db.close()
+
+    out: list[BreakdownSummary] = []
+    for row in rows:
+        try:
+            breakdown = SceneBreakdown.model_validate(row.payload)
+        except ValidationError:
+            # A payload written under an older shape. Skipped rather than
+            # failing the whole history - one unreadable proposal must not hide
+            # the readable ones.
+            continue
+        out.append(
+            BreakdownSummary(
+                breakdown_id=row.id,
+                version_number=row.version_number,
+                status=row.status,
+                created_at=row.created_at,
+                materialised_at=row.materialised_at,
+                sequence_count=len(breakdown.sequences),
+                shot_count=sum(len(sq.shots) for sq in breakdown.sequences),
+                asset_count=len(breakdown.assets),
+                breakdown=breakdown,
+            )
+        )
+    return out
 
 
 @router.get("/{show_id}/latest", response_model=PlanResponse | None)

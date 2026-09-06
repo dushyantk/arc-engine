@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   approvalEvents,
+  breakdowns,
   referenceAssets,
   scripts,
   sequences,
@@ -391,6 +392,21 @@ export async function getShotDetail(
 
   const [show] = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
 
+  // Where this shot came from, when it was proposed rather than typed. Read
+  // here so the page can link to the actual proposal instead of printing an id:
+  // provenance nobody can follow is a column, not an answer.
+  const [origin] = shot.createdFromBreakdownId
+    ? await db
+        .select({
+          id: breakdowns.id,
+          versionNumber: breakdowns.versionNumber,
+          createdAt: breakdowns.createdAt,
+        })
+        .from(breakdowns)
+        .where(eq(breakdowns.id, shot.createdFromBreakdownId))
+        .limit(1)
+    : [];
+
   const versionsWithFindings = await Promise.all(
     versions.map(async (version) => ({
       ...version,
@@ -404,6 +420,7 @@ export async function getShotDetail(
     sequence,
     show,
     versions: versionsWithFindings,
+    origin: origin ?? null,
   };
 }
 
@@ -1125,5 +1142,33 @@ export async function getProposedSheets(showId: string): Promise<ProposedSheets 
     return body as ProposedSheets;
   } catch {
     return null;
+  }
+}
+
+export type BreakdownHistoryEntry = {
+  breakdown_id: string;
+  version_number: number;
+  status: "draft" | "approved" | "materialised" | "superseded";
+  created_at: string;
+  materialised_at: string | null;
+  sequence_count: number;
+  shot_count: number;
+  asset_count: number;
+  breakdown: {
+    sequences: { code: string; description: string; shots: { code: string; brief: string }[] }[];
+    assets: { type: string; name: string; why_needed: string }[];
+  };
+};
+
+/** Every breakdown ever proposed for this show, newest first. The table keeps
+ *  superseded proposals so a shot's provenance points at something readable —
+ *  this is what makes that true in the product and not only in the database. */
+export async function getBreakdownHistory(showId: string): Promise<BreakdownHistoryEntry[]> {
+  try {
+    const { status, body } = await callRuntime(`/breakdowns/${showId}/history`);
+    if (status < 200 || status >= 300) return [];
+    return (body as BreakdownHistoryEntry[]) ?? [];
+  } catch {
+    return [];
   }
 }

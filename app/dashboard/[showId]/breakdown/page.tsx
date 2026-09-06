@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, ListTree, Lock, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import {
+  getBreakdownHistory,
   getLatestBreakdown,
   getProposedSheets,
   getScripts,
@@ -54,12 +55,14 @@ export default async function BreakdownPage({
   params: Promise<{ showId: string }>;
 }) {
   const { showId } = await params;
-  const [detail, scripts, { data: latest, runtimeReachable }, sheets] = await Promise.all([
-    getShowDetail(showId),
-    getScripts(showId),
-    getLatestBreakdown(showId),
-    getProposedSheets(showId),
-  ]);
+  const [detail, scripts, { data: latest, runtimeReachable }, sheets, history] =
+    await Promise.all([
+      getShowDetail(showId),
+      getScripts(showId),
+      getLatestBreakdown(showId),
+      getProposedSheets(showId),
+      getBreakdownHistory(showId),
+    ]);
   if (!detail) notFound();
 
   const { show } = detail;
@@ -377,6 +380,63 @@ export default async function BreakdownPage({
             ) : null}
           </div>
         </article>
+      ) : null}
+
+      {/* Superseded proposals stay readable. The breakdowns table exists so a
+          shot's created_from_breakdown_id points at something a person can open,
+          and showing only the newest made that true in the schema and false
+          here. Not re-planned: these are historical proposals, and a plan
+          computed now would answer a different question. */}
+      {history.length > 1 ? (
+        <div className="mt-8 scroll-mt-6" id="history">
+          <h2 className="font-mono text-[11px] tracking-wide text-muted-foreground uppercase">
+            Earlier proposals
+          </h2>
+          <p className="mt-1 max-w-[70ch] text-xs text-muted-foreground">
+            Every breakdown ever made from this script, newest first. Kept so a shot can
+            say which proposal put it there.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {history.slice(1).map((entry) => (
+              <details
+                key={entry.breakdown_id}
+                className="rounded-sm border border-border bg-card px-3 py-2"
+              >
+                <summary className="flex cursor-pointer flex-wrap items-baseline gap-2 font-mono text-[11.5px] text-muted-foreground hover:text-foreground">
+                  <span className="font-medium text-foreground">v{entry.version_number}</span>
+                  <span>{entry.status}</span>
+                  <span>·</span>
+                  <span>{entry.created_at.slice(0, 10)}</span>
+                  <span>·</span>
+                  <span>
+                    {entry.shot_count} shots, {entry.sequence_count} sequences,{" "}
+                    {entry.asset_count} assets
+                  </span>
+                </summary>
+                <div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+                  {entry.breakdown.sequences.map((seq) => (
+                    <div key={seq.code}>
+                      <p className="font-mono text-[11px] text-foreground">
+                        {seq.code}{" "}
+                        <span className="text-muted-foreground">{seq.description}</span>
+                      </p>
+                      <ul className="mt-1 flex flex-col gap-0.5">
+                        {seq.shots.map((shot) => (
+                          <li
+                            key={shot.code}
+                            className="max-w-[75ch] font-mono text-[10.5px] leading-relaxed text-muted-foreground"
+                          >
+                            <span className="text-foreground">{shot.code}</span> {shot.brief}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       {runtimeReachable && approvedScript && !latest ? (

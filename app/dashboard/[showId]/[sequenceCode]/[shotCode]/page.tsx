@@ -35,7 +35,7 @@ export default async function ShotDetailPage({
 
   if (!detail) notFound();
 
-  const { shot, sequence, show, versions } = detail;
+  const { shot, sequence, show, versions, origin } = detail;
   const updateBriefForShot = updateShotBrief.bind(
     null,
     showId,
@@ -87,6 +87,22 @@ export default async function ShotDetailPage({
           />
         </div>
       </div>
+
+      {/* A shot that was proposed rather than typed says so, and links to the
+          proposal. The column has been recording this since the breakdown agent
+          landed; without this it was an answer only the database could give. */}
+      {origin ? (
+        <p className="mt-6 rounded-md border border-border bg-secondary/60 px-4 py-2.5 font-mono text-[11.5px] text-muted-foreground">
+          Proposed by{" "}
+          <Link
+            href={`/dashboard/${showId}/breakdown#history`}
+            className="text-foreground underline underline-offset-2 hover:text-primary"
+          >
+            breakdown v{origin.versionNumber}
+          </Link>{" "}
+          on {origin.createdAt.toISOString().slice(0, 10)}, not authored by hand.
+        </p>
+      ) : null}
 
       <div className="mt-6 rounded-lg border border-border bg-card p-5">
         <h2 className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">

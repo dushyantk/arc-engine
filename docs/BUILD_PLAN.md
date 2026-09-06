@@ -661,6 +661,29 @@ recommended first move if this is attempted before the beta release rather than 
       a plate a human chose — so the plate carries a GENERATED badge, the prompt and model are
       readable on the card, and the button reads "Lock this generated sheet as canon".
 
+### 6.x — Everything generated is reachable in the product
+
+Audited after 6.3: every page loads, and every stored artifact can be opened by a person rather
+than only by a query. Two things the schema promised were true only in the database.
+
+- [x] **Superseded breakdowns were unreachable.** The table exists so a proposal that was
+      replaced stays readable next to the one taken, and so a shot's `created_from_breakdown_id`
+      points at something openable — but the UI only ever fetched `/latest`, stranding three of
+      four proposals. `GET /breakdowns/{show}/history` returns them all, and the page lists them
+      under "Earlier proposals" with each one's shot list readable. Not re-planned against live
+      state: these are historical proposals, and a plan computed now would answer a different
+      question. A payload written under an older shape is skipped rather than failing the whole
+      history.
+- [x] **Shot provenance was a column, not an answer.** All 7 materialised shots carried
+      `created_from_breakdown_id` and nothing rendered it. The shot page now says "Proposed by
+      breakdown vN … not authored by hand" and links to `#history`, where that version is
+      actually readable — the named version is usually not the one the page opens on, so linking
+      at the page alone would have been a dead end dressed as provenance.
+- [x] **Sweep of all 11 pages**: every route 200, zero page errors, zero broken images, generated
+      sheets serving from MinIO as `image/jpeg`. Two apparent failures during the audit were
+      defects in the audit itself, not the product — a lazy below-the-fold image measured before
+      it decoded, and a case-sensitive assertion against CSS-uppercased text.
+
 ### 6.4 — Prove the chain
 
 - [x] End-to-end on a throwaway show ("Lantern Signal"): idea prompt → script → approval →
