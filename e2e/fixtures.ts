@@ -6,7 +6,7 @@ import { and, eq, like } from "drizzle-orm";
 import postgres from "postgres";
 import { test as base, type Page } from "@playwright/test";
 import * as schema from "@/db/schema";
-import { referenceAssets, sequences, shotVersions, shots, shows } from "@/db/schema";
+import { referenceAssets, sequences, shotVersions, shots, shows, user } from "@/db/schema";
 import { getMinioClient, MINIO_BUCKET } from "@/lib/minio";
 import { requireEnv } from "./env";
 
@@ -33,6 +33,23 @@ import { requireEnv } from "./env";
 // ---------------------------------------------------------------------------
 
 export const E2E_SHOW_PREFIX = "E2E ";
+
+/** The suite's own operator. Never the real one - a password in a test file is a
+ *  password on disk, and this account is only valid against the local stack.
+ *  Created by auth.setup.ts and removed in global teardown. */
+export const E2E_OPERATOR_EMAIL = "e2e-operator@dailies.test";
+export const E2E_OPERATOR_PASSWORD = "e2e-only-local-password";
+export const STORAGE_STATE = "e2e/.auth/state.json";
+
+/** Removes the suite's operator. Scoped to the one address above, so it cannot
+ *  reach the real account. */
+export async function destroyE2EOperator(): Promise<number> {
+  const removed = await testDb
+    .delete(user)
+    .where(eq(user.email, E2E_OPERATOR_EMAIL))
+    .returning({ id: user.id });
+  return removed.length;
+}
 
 /** A dedicated connection, so the suite owns its own lifecycle and can close
  *  it in global teardown instead of leaking the app singleton's socket. */

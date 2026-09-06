@@ -79,6 +79,25 @@ quota, not as a requirement.
 > Generation makes **real, billed** Veo calls. Nothing generates on startup, on test, or on page
 > load — only an explicit run does, and the dashboard requires cost consent before starting one.
 
+### Sign-in
+
+The dashboard is behind a single-operator sign-in. There is **no sign-up route** — an open one on
+a deployment that spends real money would look protected while being worse than nothing. Create the
+one account deliberately:
+
+```bash
+openssl rand -base64 32              # BETTER_AUTH_SECRET
+pnpm auth:create-operator you@example.com
+```
+
+The landing page stays public; everything that can see or spend is behind the gate.
+
+**The agent runtime needs its own guard.** Signing in protects the browser, not the FastAPI
+process, and every billed endpoint lives there. Set `AGENT_RUNTIME_TOKEN` to the same value on both
+sides; the web app attaches it server-side and the browser never sees it. Unset means the runtime
+is open — fine on a laptop, and `GET /health` reports `"auth":"open"` so it is answerable from
+outside rather than only from the log.
+
 ### Spending ceiling
 
 Set `DAILIES_BUDGET_USD` to cap total spend across all runs. The runtime refuses a billed call

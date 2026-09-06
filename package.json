@@ -16,12 +16,15 @@
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
+    "auth:create-operator": "tsx --env-file=.env scripts/create-operator.ts",
     "ch:migrate": "uv run --directory server python clickhouse/migrate.py",
     "ledger:sync": "tsx --env-file=.env scripts/sync-build-artifacts.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
+    "@better-auth/core": "^1.7.2",
     "@clickhouse/client": "^1.23.1",
+    "better-auth": "^1.7.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",

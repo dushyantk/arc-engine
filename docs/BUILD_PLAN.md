@@ -746,6 +746,36 @@ than only by a query. Two things the schema promised were true only in the datab
       destroys paid work — protection per shot, orphans reported and never deleted, no-op plans
       identified, duplicate codes refused before any planning happens. 63 tests total. †
 
+### Hosting prerequisites
+
+- [x] **Single-operator auth (Better Auth).** No sign-up route: `disableSignUp` is the whole access
+      model, and `pnpm auth:create-operator` is the only path that makes an account. Sessions last
+      12 hours. The landing page stays public.
+      **The redirect loop this project was warned about does not happen**, guarded twice
+      independently: `middleware.ts` never redirects *away* from /login on cookie presence (the
+      behaviour that caused it), and `app/dashboard/layout.tsx` — the single gatekeeper every route
+      nests inside — exits through `/api/expire-session`, a route handler, because a server
+      component cannot clear a cookie and a bare `redirect("/login")` would leave the dead one in
+      place. Verified by deleting the session row while the browser held the cookie: settles in 2
+      document redirects with the cookie cleared, 1 thereafter.
+- [x] **Every API route is gated, not just the pages.** Found by testing rather than assumed:
+      `/api/runs/generate` answered **200 to a signed-out request** and would have proxied a billed
+      Veo call while the dashboard looked locked — the runtime's own token does not help, because
+      the proxy holds it and attaches it for whoever asks. Twelve routes now refuse, and
+      `e2e/api-auth.spec.ts` *discovers* routes from the filesystem rather than listing them, which
+      immediately caught a thirteenth: `/api/sessions/[runId]/stream`, which streams a run's
+      decisions and costs and had been skipped by a filter matching "session".
+- [x] **The runtime has its own shared-secret gate.** `AGENT_RUNTIME_TOKEN`, compared with
+      `hmac.compare_digest` so a wrong token cannot be narrowed byte by byte. Unset means open and
+      says so at startup and in `/health`, the same shape as the budget ceiling.
+      `test_runtime_auth.py` enumerates the app's routes so a new router mounted without the
+      dependency fails a test — verified by adding an ungated router and watching it get flagged.
+- [x] **A sign-in failure no longer blames the operator's password.** An `INVALID_ORIGIN` 403 —
+      this deployment misconfigured — rendered as "that email and password combination was not
+      accepted", which is exactly the rule about never telling a user to fix their side because
+      ours lapsed. Config-shaped failures now name themselves, and that message is what identified
+      the real cause within seconds when it recurred under `next start`.
+
 ### Ideas taken from Rexgent (`~/dev/Rexgent`), and what they cost to adopt
 
 That project solves the same three problems (consistency, hallucination, cost) further

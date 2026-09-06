@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { requireApiSession } from "@/lib/api-auth";
 import { getSessionEvents } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
+  const unauthorised = await requireApiSession();
+  if (unauthorised) return unauthorised;
+
   const { runId } = await params;
   const encoder = new TextEncoder();
 

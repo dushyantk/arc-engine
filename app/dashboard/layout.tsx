@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Film } from "lucide-react";
 import { getGlobalRailStats } from "@/lib/data";
+import { auth } from "@/lib/auth";
+import { SignOutButton } from "@/components/sign-out-button";
 
 function RailItem({
   label,
@@ -44,6 +48,20 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // THE gatekeeper. Every route under /dashboard nests inside this, so the check
+  // lives here once rather than in each page - one place to be right, and no way
+  // for a new page to be added without it.
+  //
+  // This is the real check; middleware.ts only looks for a cookie. When the two
+  // disagree - a cookie whose session row is gone - the exit is
+  // /api/expire-session, which clears the cookie before redirecting. A bare
+  // redirect("/login") would leave the dead cookie in place and let the fast
+  // check keep waving the browser back in.
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    redirect("/api/expire-session");
+  }
+
   const stats = await getGlobalRailStats();
 
   return (
@@ -57,6 +75,12 @@ export default async function DashboardLayout({
             <Film className="size-[15px] text-primary" />
             DAILIES
           </Link>
+          <div className="ml-auto flex items-center gap-3">
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {session.user.email}
+            </span>
+            <SignOutButton />
+          </div>
         </div>
       </header>
 

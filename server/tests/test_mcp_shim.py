@@ -21,10 +21,15 @@ def test_the_patched_function_still_exists_upstream() -> None:
 def test_the_keywords_that_break_it_are_still_recursed_into() -> None:
     """The bug is that these are followed unconditionally. If upstream stops
     treating them as schemas, the patch is no longer needed - notice that
-    deliberately rather than carrying dead code forever."""
+    deliberately rather than carrying dead code forever.
+
+    Inspects mcp_shim._original, not the module attribute: once install() has
+    run, that attribute is the patch, whose source says nothing about upstream.
+    Reading it made this test pass or fail depending on which tests ran first.
+    """
     import inspect
 
-    source = inspect.getsource(_mcp_utils._filter_to_supported_schema)
+    source = inspect.getsource(mcp_shim._original)
     assert "additionalProperties" in source
 
 

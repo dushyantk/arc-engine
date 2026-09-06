@@ -1,5 +1,10 @@
 import "./env";
-import { closeTestDb, destroyAllE2EShows, E2E_SHOW_PREFIX } from "./fixtures";
+import {
+  closeTestDb,
+  destroyAllE2EShows,
+  destroyE2EOperator,
+  E2E_SHOW_PREFIX,
+} from "./fixtures";
 
 // Safety net for a crashed or interrupted run: per-test teardown is the normal
 // path, this is what guarantees nothing is left behind when that path never
@@ -12,6 +17,9 @@ export default async function globalTeardown(): Promise<void> {
         `[e2e] global teardown removed ${removed} leftover "${E2E_SHOW_PREFIX}…" show(s)`,
       );
     }
+    // The suite's own operator goes too - it exists only to hold a session for
+    // these tests, and leaving it behind would leave a usable local login.
+    await destroyE2EOperator();
   } finally {
     await closeTestDb();
   }

@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { sequences, shots } from "@/db/schema";
 import { getExportPackage } from "@/lib/export";
 import { addShotFolder, zipResponse } from "@/lib/export-zip";
+import { requireApiSession } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,9 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ sequenceId: string }> },
 ) {
+  const unauthorised = await requireApiSession();
+  if (unauthorised) return unauthorised;
+
   const { sequenceId } = await params;
 
   const [sequence] = await db
