@@ -52,7 +52,7 @@ ORDER BY (shot_id, version, created_at);
 CREATE TABLE IF NOT EXISTS dailies.agent_decision_log
 (
     run_id      String,
-    agent_name  Enum8('planner' = 1, 'generation_adapter' = 2, 'critic' = 3, 'revision_agent' = 4, 'approval_gate' = 5, 'continuity_agent' = 6, 'story_agent' = 7, 'identity_check' = 8, 'breakdown_agent' = 9),
+    agent_name  Enum8('planner' = 1, 'generation_adapter' = 2, 'critic' = 3, 'revision_agent' = 4, 'approval_gate' = 5, 'continuity_agent' = 6, 'story_agent' = 7, 'identity_check' = 8, 'breakdown_agent' = 9, 'asset_sheet_agent' = 10),
     step        String,
     input_ref   String,
     output_ref  String,

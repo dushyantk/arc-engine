@@ -181,3 +181,17 @@ class SceneBreakdown(BaseModel):
 
     sequences: list[BreakdownSequence] = Field(min_length=1)
     assets: list[BreakdownAsset] = Field(default_factory=list)
+
+
+class AssetSheetSpec(BaseModel):
+    """One reference sheet to generate.
+
+    `views` is what makes this a *sheet* rather than a picture: a character the
+    generator is later held to has to be seen from more than one side, or the
+    critic is judging identity against a single angle it happened to get.
+    """
+
+    asset_type: ReferenceAssetTypeLiteral
+    name: str
+    prompt: str
+    views: list[str] = Field(min_length=1)

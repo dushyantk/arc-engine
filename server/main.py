@@ -9,6 +9,7 @@ bootstrap()
 from routes.breakdowns import router as breakdowns_router
 from routes.runs import router as runs_router
 from routes.scripts import router as scripts_router
+from routes.sheets import router as sheets_router
 
 app = FastAPI(title="Dailies agent runtime")
 
@@ -22,6 +23,7 @@ app.add_middleware(
 app.include_router(breakdowns_router)
 app.include_router(runs_router)
 app.include_router(scripts_router)
+app.include_router(sheets_router)
 
 
 @app.get("/health")

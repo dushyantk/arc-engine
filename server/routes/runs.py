@@ -33,6 +33,7 @@ from agents.production_memory import (
 from agents.sequence_continuity import evaluate_sequence_continuity
 from db.postgres import Database
 from models.contracts import GenerationSettings
+from routes.gates import require_budget
 from run_session import recritique as run_recritique
 from run_session import reuse_prompt as run_reuse_prompt
 from run_session import run as run_generate
@@ -46,27 +47,17 @@ _ESTIMATE_SECONDS = 8
 
 
 def _require_budget(model_tier: str | None) -> None:
-    """Refuse a billed run that would breach the configured ceiling.
+    """The shared ceiling gate, priced in Veo's unit.
 
-    Checked before the call, not after: a cap that only notices once the money is
-    gone is a report. Unset means unlimited and enforces nothing - see
-    agents/budget.py for why it does not default to a number nobody chose.
+    An unknown tier prices at the dearest one. /reuse-prompt inherits its model
+    from the source version's stored settings and cannot know it here without a
+    database round-trip, and /generate lets the planner choose when the operator
+    does not. A ceiling should err toward refusing a run that would have been
+    cheap rather than admitting one that breaks it.
     """
-    # An unknown tier prices at the dearest one. /reuse-prompt inherits its model
-    # from the source version's stored settings and cannot know it here without a
-    # database round-trip, and /generate lets the planner choose when the operator
-    # does not. A ceiling should err toward refusing a run that would have been
-    # cheap rather than admitting one that breaks it.
     pricing = get_veo_pricing()
     per_second = pricing.get(model_tier or "", max(pricing.values(), default=0.0))
-    estimate = per_second * _ESTIMATE_SECONDS
-    decision = evaluate_budget(
-        spent_usd=total_spent_usd(),
-        estimate_usd=estimate,
-        ceiling_usd=read_ceiling(),
-    )
-    if not decision.allowed:
-        raise HTTPException(status_code=402, detail=decision.reason)
+    require_budget(per_second * _ESTIMATE_SECONDS)
 
 
 _active: dict[str, str] | None = None

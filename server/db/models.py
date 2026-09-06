@@ -56,6 +56,9 @@ class ShotVersion(BaseModel):
     created_at: datetime
 
 
+ReferenceAssetSource = Literal["uploaded", "generated"]
+
+
 class ReferenceAsset(BaseModel):
     id: UUID
     show_id: UUID
@@ -64,6 +67,10 @@ class ReferenceAsset(BaseModel):
     image_url: str
     locked_at: datetime | None
     approved_by: str | None
+    source: ReferenceAssetSource
+    generated_from_breakdown_id: UUID | None
+    generation_prompt: str | None
+    generation_model: str | None
 
 
 ApprovalSubject = Literal["shot_version", "script", "breakdown"]

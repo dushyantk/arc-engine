@@ -162,6 +162,19 @@ class Database:
         )
         return [ReferenceAsset(**dict(r)) for r in rows]
 
+    async def get_all_reference_assets(self, show_id: UUID) -> list[ReferenceAsset]:
+        """Every reference, locked or not.
+
+        Deliberately separate from get_reference_assets, which returns only
+        canon and is what every agent reads. This one exists for the operator
+        surfaces - deciding whether a sheet still needs generating means seeing
+        the ones that are not canon yet. Never wire an agent to this.
+        """
+        rows = await self.pool.fetch(
+            "SELECT * FROM reference_assets WHERE show_id = $1 ORDER BY name", show_id
+        )
+        return [ReferenceAsset(**dict(r)) for r in rows]
+
     async def insert_reference_asset(
         self,
         *,
@@ -182,6 +195,45 @@ class Database:
             name,
             image_url,
             approved_by,
+        )
+        assert row is not None
+        return ReferenceAsset(**dict(row))
+
+    async def insert_generated_reference(
+        self,
+        *,
+        show_id: UUID,
+        type: str,
+        name: str,
+        image_url: str,
+        breakdown_id: UUID | None,
+        generation_prompt: str,
+        generation_model: str,
+    ) -> ReferenceAsset:
+        """A generated sheet, landing UNLOCKED.
+
+        Deliberately a separate method from insert_reference_asset, which locks
+        on insert because an operator uploading a plate is asserting it as canon
+        by the act of uploading it. A generated image asserts nothing. Leaving
+        locked_at NULL is what keeps it out of get_reference_assets, and
+        therefore out of the planner, the critic and the generation adapter,
+        until a human locks it. Same column, same verb, no second gate.
+        """
+        row = await self.pool.fetchrow(
+            """
+            INSERT INTO reference_assets
+                (show_id, type, name, image_url, locked_at, approved_by,
+                 source, generated_from_breakdown_id, generation_prompt, generation_model)
+            VALUES ($1, $2, $3, $4, NULL, NULL, 'generated', $5, $6, $7)
+            RETURNING *
+            """,
+            show_id,
+            type,
+            name,
+            image_url,
+            breakdown_id,
+            generation_prompt,
+            generation_model,
         )
         assert row is not None
         return ReferenceAsset(**dict(row))

@@ -154,3 +154,14 @@ export const sceneBreakdownSchema = z.object({
   assets: z.array(breakdownAssetSchema).default([]),
 });
 export type SceneBreakdown = z.infer<typeof sceneBreakdownSchema>;
+
+/** Asset-sheet agent input: one reference sheet to generate. `views` is what
+ *  makes it a *sheet* rather than a picture — a character the generator must
+ *  hold to needs to be seen from more than one side. */
+export const assetSheetSpecSchema = z.object({
+  assetType: referenceAssetTypeSchema,
+  name: z.string(),
+  prompt: z.string(),
+  views: z.array(z.string()).min(1),
+});
+export type AssetSheetSpec = z.infer<typeof assetSheetSpecSchema>;

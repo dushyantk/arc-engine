@@ -116,6 +116,11 @@ export const shotVersions = pgTable("shot_versions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const referenceAssetSource = pgEnum("reference_asset_source", [
+  "uploaded",
+  "generated",
+]);
+
 export const referenceAssets = pgTable("reference_assets", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   showId: uuid("show_id")
@@ -126,6 +131,21 @@ export const referenceAssets = pgTable("reference_assets", {
   imageUrl: text("image_url").notNull(),
   lockedAt: timestamp("locked_at", { withTimezone: true }),
   approvedBy: text("approved_by"),
+  // Where the image came from. Defaults to 'uploaded' so the existing rows,
+  // which were all uploaded by hand, are classified correctly in place - and so
+  // a caller that forgets cannot silently pass a generated image off as one a
+  // human supplied.
+  source: referenceAssetSource("source").notNull().default("uploaded"),
+  // A generated sheet must be as traceable as generated footage: which breakdown
+  // asked for it, and the exact prompt that produced it. Null for uploads, where
+  // neither exists. set null on delete, like shots - binning a proposal must not
+  // bin the reference somebody has since locked as canon.
+  generatedFromBreakdownId: uuid("generated_from_breakdown_id").references(
+    (): AnyPgColumn => breakdowns.id,
+    { onDelete: "set null" },
+  ),
+  generationPrompt: text("generation_prompt"),
+  generationModel: text("generation_model"),
 });
 
 export const scriptStatus = pgEnum("script_status", ["draft", "approved", "superseded"]);
