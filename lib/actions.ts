@@ -449,3 +449,29 @@ export async function submitBreakdownApproval(
   revalidatePath(`/dashboard/${showId}`);
   redirect(`/dashboard/${showId}/breakdown`);
 }
+
+// Asset sheets. Billed, so this is a consent surface: the caller names exactly
+// which sheets to make, and the runtime re-checks both the consent flag and the
+// spending ceiling before any call happens.
+export async function generateAssetSheets(showId: string, formData: FormData) {
+  const names = formData.getAll("name").map(String).filter(Boolean);
+  if (names.length === 0) {
+    throw new Error("Select at least one sheet to generate.");
+  }
+
+  const { status, body } = await callRuntime("/sheets/generate", {
+    method: "POST",
+    body: JSON.stringify({ show_id: showId, confirm_cost: true, names }),
+  });
+
+  if (status < 200 || status >= 300) {
+    const detail =
+      body && typeof body === "object" && "detail" in body
+        ? String((body as { detail: unknown }).detail)
+        : "The agent runtime could not generate the sheets.";
+    throw new Error(detail);
+  }
+
+  revalidatePath(`/dashboard/${showId}/breakdown`);
+  revalidatePath(`/dashboard/${showId}`);
+}

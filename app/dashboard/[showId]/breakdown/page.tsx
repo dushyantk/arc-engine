@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Check, ListTree, Lock, Plus, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, Check, ListTree, Lock, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import {
   getLatestBreakdown,
+  getProposedSheets,
   getScripts,
   getShowDetail,
   type BreakdownShotPlan,
 } from "@/lib/data";
-import { proposeBreakdown, submitBreakdownApproval } from "@/lib/actions";
+import {
+  generateAssetSheets,
+  proposeBreakdown,
+  submitBreakdownApproval,
+} from "@/lib/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,10 +54,11 @@ export default async function BreakdownPage({
   params: Promise<{ showId: string }>;
 }) {
   const { showId } = await params;
-  const [detail, scripts, { data: latest, runtimeReachable }] = await Promise.all([
+  const [detail, scripts, { data: latest, runtimeReachable }, sheets] = await Promise.all([
     getShowDetail(showId),
     getScripts(showId),
     getLatestBreakdown(showId),
+    getProposedSheets(showId),
   ]);
   if (!detail) notFound();
 
@@ -243,30 +249,85 @@ export default async function BreakdownPage({
             ))}
 
             {latest.breakdown.assets.length > 0 ? (
-              <div className="mt-6 border-t border-border pt-4">
+              <form
+                action={generateAssetSheets.bind(null, showId)}
+                className="mt-6 border-t border-border pt-4"
+              >
                 <p className="font-mono text-[11px] tracking-wide text-muted-foreground uppercase">
                   Reference assets this needs
                 </p>
                 <p className="mt-1 max-w-[70ch] text-xs text-muted-foreground">
-                  Proposed, not created. Nothing here generates a sheet or spends anything —
-                  these are what the sequence would need locked references for.
+                  Generating a sheet is a real, billed image call. Each one arrives{" "}
+                  <span className="text-foreground">unlocked</span>, so it is invisible to the
+                  planner and the critic until you lock it as canon on the show page.
                 </p>
+
                 <div className="mt-3 flex flex-col gap-2">
-                  {latest.breakdown.assets.map((asset) => (
-                    <div key={asset.name} className="rounded-sm border border-border px-3 py-2">
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                          {asset.type}
+                  {latest.breakdown.assets.map((asset) => {
+                    const spec = sheets?.specs.find((s) => s.name === asset.name);
+                    const exists = spec?.already_exists ?? false;
+                    return (
+                      <label
+                        key={asset.name}
+                        className={`flex items-start gap-2.5 rounded-sm border border-border px-3 py-2 ${
+                          exists ? "opacity-55" : "has-[:checked]:border-ring has-[:checked]:bg-secondary"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          name="name"
+                          value={asset.name}
+                          defaultChecked={!exists}
+                          // A reference under this name already exists. Offering
+                          // it again would quietly pay twice for the same thing.
+                          disabled={exists || !spec}
+                          className="mt-0.5"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-baseline gap-2">
+                            <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                              {asset.type}
+                            </span>
+                            <span className="text-xs font-medium">{asset.name}</span>
+                            {exists ? (
+                              <span className="font-mono text-[10px] text-success">
+                                already has a reference
+                              </span>
+                            ) : spec ? (
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                ~${spec.estimated_usd.toFixed(3)} · {spec.views.length} view
+                                {spec.views.length === 1 ? "" : "s"}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="mt-1 block max-w-[70ch] text-xs text-muted-foreground">
+                            {asset.why_needed}
+                          </span>
                         </span>
-                        <span className="text-xs font-medium">{asset.name}</span>
-                      </div>
-                      <p className="mt-1 max-w-[70ch] text-xs text-muted-foreground">
-                        {asset.why_needed}
-                      </p>
-                    </div>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </div>
-              </div>
+
+                {sheets ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <Button type="submit" disabled={sheets.total_estimated_usd === 0}>
+                      <Sparkles className="size-4" />
+                      Generate sheets
+                    </Button>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {sheets.total_estimated_usd > 0
+                        ? `~$${sheets.total_estimated_usd.toFixed(3)} on ${sheets.model}. Real money.`
+                        : "Every asset here already has a reference — nothing to generate."}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="mt-3 font-mono text-[11px] text-warning">
+                    Could not reach the agent runtime, so there is no price to consent to and
+                    nothing can be generated.
+                  </p>
+                )}
+              </form>
             ) : null}
 
             {isOpen ? (

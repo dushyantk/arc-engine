@@ -1098,3 +1098,32 @@ export async function getLatestBreakdown(
     return { data: null, runtimeReachable: false };
   }
 }
+
+export type ProposedSheet = {
+  asset_type: "character" | "prop" | "environment" | "palette";
+  name: string;
+  prompt: string;
+  views: string[];
+  already_exists: boolean;
+  estimated_usd: number;
+};
+
+export type ProposedSheets = {
+  model: string;
+  breakdown_id: string | null;
+  specs: ProposedSheet[];
+  total_estimated_usd: number;
+};
+
+/** What sheets the show's current breakdown implies, costed. Null when there is
+ *  no breakdown to take them from — the caller says so rather than showing an
+ *  empty list that reads like "nothing needed". */
+export async function getProposedSheets(showId: string): Promise<ProposedSheets | null> {
+  try {
+    const { status, body } = await callRuntime(`/sheets/${showId}/proposed`);
+    if (status < 200 || status >= 300) return null;
+    return body as ProposedSheets;
+  } catch {
+    return null;
+  }
+}

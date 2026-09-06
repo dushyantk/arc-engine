@@ -626,16 +626,40 @@ recommended first move if this is attempted before the beta release rather than 
 
 ### 6.3 — Asset sheets
 
-- [ ] `reference_assets` gains `source: uploaded | generated`, `generated_from_breakdown_id`,
-      `generation_prompt`. A generated character sheet must be as traceable as a generated shot.
-- [ ] `AssetSheetSpec` contract — `{ asset_type, name, prompt, views[] }`.
-- [ ] Asset-sheet agent (`server/agents/asset_sheet.py`): spec → a real character or environment
-      sheet image, stored in MinIO, landing as an **unlocked** `reference_assets` row.
-- [ ] Cost consent before generating sheets, matching the Veo run gate.
-- [ ] **No new approval concept for assets.** A sheet arrives unlocked and is therefore already
-      invisible to the planner and generation adapter — `get_reference_assets()` selects
-      `WHERE locked_at IS NOT NULL`. The lock verb built in d276b52 *is* the canon gate; wiring is
-      confirming that, not building it.
+- [x] `reference_assets` gains `source`, `generated_from_breakdown_id`, `generation_prompt` and
+      `generation_model`. Defaults to `uploaded`, so the three existing rows classified correctly
+      in place and a caller that forgets cannot pass a generated image off as one a human supplied.
+      `ON DELETE SET NULL` on the breakdown link — binning a proposal must not bin a reference
+      somebody has since locked as canon.
+- [x] `AssetSheetSpec` contract — Zod and Pydantic mirrors. `views` is what makes it a *sheet*
+      rather than a picture: a character the critic later judges identity against has to be seen
+      from more than one side. Views are per asset type — "side profile" means something for a
+      character and nothing for a palette.
+- [x] Asset-sheet agent ([`server/agents/asset_sheet.py`](../server/agents/asset_sheet.py)) — spec
+      to a real image, stored in MinIO, landing as an **unlocked** `reference_assets` row. The
+      prompt is assembled in one place so the text stored on the row is the text that ran. A
+      failed sheet writes no row, so a reference never points at no picture — but its cost is
+      logged *before* the failure check, because the call was billed either way and a cost the
+      ledger never saw is what the budget now depends on not happening.
+- [x] Cost consent before generating sheets, matching the Veo run gate. Both gates moved to
+      `server/routes/gates.py` rather than copied: video bills per second, images per token, and
+      two inline copies of one ceiling check is how one of them ends up not enforcing it.
+      **RULE: every billed route calls `require_budget()` and `require_consent()`, never
+      re-derives them.** The ceiling is checked against the whole batch up front — per-sheet
+      checking would let a batch walk past the cap by paying for the first few before the check
+      that stops it. Verified: a $0.23 batch at a $29.90 ceiling with $29.86 spent returned 402
+      and generated nothing.
+- [x] **No new approval concept for assets — confirmed, not built.** Every agent reads references
+      through `get_reference_assets()`, which selects `WHERE locked_at IS NOT NULL`; all three
+      call sites (`run_session`, `routes/runs`, and nothing else) go through it. An unlocked sheet
+      is therefore already invisible to the planner, the critic and the generation adapter, and
+      the lock verb built in d276b52 *is* the canon gate. Verified against the real rows: agents
+      see 0 references, the operator sees 2. `get_all_reference_assets()` exists for the operator
+      surfaces only and says in its docstring never to wire an agent to it.
+- [x] **The card says which references a machine made.** Locking a generated sheet asserts a
+      model's guess as the thing every shot is judged against — a different decision from locking
+      a plate a human chose — so the plate carries a GENERATED badge, the prompt and model are
+      readable on the card, and the button reads "Lock this generated sheet as canon".
 
 ### 6.4 — Prove the chain
 

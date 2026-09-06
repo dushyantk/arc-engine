@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Lock, Plus, Unlock } from "lucide-react";
+import { ArrowLeft, Lock, Plus, Sparkles, Unlock } from "lucide-react";
 import { getLatestBreakdown, getScripts, getShowDetail } from "@/lib/data";
 import { createSequence, setReferenceLock, uploadReferenceAsset } from "@/lib/actions";
 import { UploadReferenceDialog } from "@/components/upload-reference-dialog";
@@ -220,6 +220,16 @@ export default async function ShowDetailPage({
                     NOT IN CANON
                   </span>
                 ) : null}
+                {/* Locking a generated sheet asserts a machine's guess as the
+                    thing every shot is judged against. That is a different
+                    decision from locking a plate someone chose, so the card has
+                    to say which one this is - before the button, not after. */}
+                {ref.source === "generated" ? (
+                  <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-sm bg-background/85 px-1.5 py-0.5 font-mono text-[10px] text-primary">
+                    <Sparkles className="size-3" />
+                    GENERATED
+                  </span>
+                ) : null}
               </div>
               <div className="p-3">
                 <p className="text-sm font-medium">{ref.name}</p>
@@ -244,6 +254,19 @@ export default async function ShowDetailPage({
                     "Not used by any run while unlocked"
                   )}
                 </p>
+                {ref.source === "generated" ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-mono text-[10px] tracking-wide text-muted-foreground uppercase hover:text-foreground">
+                      How this was made
+                    </summary>
+                    <p className="mt-1.5 font-mono text-[10.5px] leading-relaxed text-muted-foreground">
+                      {ref.generationModel ?? "unknown model"}
+                    </p>
+                    <p className="mt-1 border-l-2 border-border pl-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground/80">
+                      {ref.generationPrompt ?? "No prompt recorded."}
+                    </p>
+                  </details>
+                ) : null}
                 <form
                   action={setReferenceLock.bind(null, showId, ref.id)}
                   className="mt-2.5"
@@ -254,7 +277,11 @@ export default async function ShowDetailPage({
                     value={ref.lockedAt ? "false" : "true"}
                   />
                   <Button type="submit" variant="outline" size="sm" className="w-full">
-                    {ref.lockedAt ? "Unlock" : "Lock as canon"}
+                    {ref.lockedAt
+                      ? "Unlock"
+                      : ref.source === "generated"
+                        ? "Lock this generated sheet as canon"
+                        : "Lock as canon"}
                   </Button>
                 </form>
               </div>
