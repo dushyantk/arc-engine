@@ -541,7 +541,8 @@ above, not forgotten).
       terminal-shaped twin of the HTTP gate; both wrap `evaluate_budget()` and neither
       reimplements it. The CLI also gained `--model`, without which it could not pick a cheap tier
       at all.
-- [ ] Beta release: tag
+- [x] Beta release: tagged `v0.1.0-beta` locally. Not pushed — this repo has no remote, and
+      publishing is a separate, explicit decision.
 
 ## Phase 6 — Top-down planning (idea → script → breakdown → assets → shots)
 
