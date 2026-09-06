@@ -42,6 +42,49 @@ async function insertClickHouseRows(table: string, rows: object[]) {
   }
 }
 
+/** Fails before anything is written if ClickHouse cannot take the fixture.
+ *
+ *  The seed writes Postgres first and ClickHouse second. On a fresh checkout
+ *  where ch:migrate had not run, that left a half-seeded database: the shows
+ *  were in, the findings were not, and the run could not be repeated because
+ *  the guard above then saw shows and refused. Better to refuse before the
+ *  first write than to leave a state only --force can clear. */
+async function requireClickHouseReady() {
+  const url = new URL(`http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}/`);
+  url.searchParams.set(
+    "query",
+    `SELECT count() FROM system.tables WHERE database = '${CLICKHOUSE_DATABASE}' ` +
+      `AND name IN ('qc_findings','continuity_fingerprints','agent_decision_log')`,
+  );
+  const auth = Buffer.from(`${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}`).toString("base64");
+
+  let count: string;
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    count = (await res.text()).trim();
+  } catch (error) {
+    // Ours, not theirs: say which host was tried, since the usual cause is a
+    // CLICKHOUSE_PORT in .env pointing somewhere nothing is listening.
+    console.error(
+      `Refusing to seed: could not reach ClickHouse at ${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}.\n` +
+        `${String(error)}\n` +
+        "Start it with `docker compose up -d` and check CLICKHOUSE_HOST/CLICKHOUSE_PORT in .env.",
+    );
+    process.exit(1);
+  }
+
+  if (count !== "3") {
+    console.error(
+      `Refusing to seed: ClickHouse at ${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT} has ${count} of the 3 ` +
+        `tables the fixture needs in database "${CLICKHOUSE_DATABASE}".\n` +
+        "Run `pnpm ch:migrate` first — seeding now would write the Postgres half\n" +
+        "and fail on the ClickHouse half, leaving a database only --force can reseed.",
+    );
+    process.exit(1);
+  }
+}
+
 const REF_BASE = "refs/platform-chase";
 const GEN_BASE = "gen";
 
@@ -58,6 +101,10 @@ async function main() {
     );
     process.exit(1);
   }
+
+  // Checked after the "already has shows" guard and before the first write, so
+  // a misconfigured ClickHouse costs nothing and leaves nothing behind.
+  await requireClickHouseReady();
 
   console.log("Seeding: Platform Chase (SQ010)");
 

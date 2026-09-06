@@ -115,6 +115,38 @@ function agentSpend(stats: LandingStats, agentName: string): AgentSpend {
   return row;
 }
 
+/** Shown before any run exists. Deliberately not the real page with zeros in
+ *  it: every number on that page is a claim about work that was actually done,
+ *  and zero calls is not a cheap run - it is no run. */
+function EmptyLanding() {
+  return (
+    <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-24">
+      <p className="font-mono text-xs tracking-[0.2em] text-neutral-500 uppercase">
+        Dailies · Agentic GenFX supervisor
+      </p>
+      <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-100">
+        No runs on the record yet.
+      </h1>
+      <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-neutral-400">
+        This page is built entirely from <code className="font-mono">agent_decision_log</code> —
+        every figure on it is a real model call that really happened. The log is empty, so
+        there is nothing to show. It is not a zero; it is an absence, and showing zeros here
+        would be the sort of claim this product exists to argue against.
+      </p>
+      <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-neutral-400">
+        Start a run from the dashboard, or seed the demo fixture with{" "}
+        <code className="font-mono">pnpm db:seed</code>, and this page fills itself in.
+      </p>
+      <Link
+        href="/dashboard"
+        className="mt-8 inline-flex w-fit items-center gap-2 rounded-lg border border-neutral-700 px-4 py-2 font-mono text-sm text-neutral-200 transition-colors hover:border-neutral-500"
+      >
+        Open the dashboard &rarr;
+      </Link>
+    </main>
+  );
+}
+
 type Review = { shotCode: string; version: number; findings: LandingFinding[] };
 
 function groupReviews(findings: LandingFinding[]): Review[] {
@@ -174,6 +206,15 @@ export default async function LandingPage() {
     getLandingFindings(),
     getShotDeepLink(EVIDENCE_SHOT_CODE),
   ]);
+
+  // This whole page is an argument made out of one real run's ledger. On a fresh
+  // checkout no run has happened, so there is nothing to argue from - and the
+  // honest answer is to say so, not to render the same claims over fabricated
+  // zeros. agentSpend() below stays strict for the other case, where the log has
+  // rows but a stage is missing from it, which is a genuine inconsistency.
+  if (stats.totalCalls === 0) {
+    return <EmptyLanding />;
+  }
 
   const planner = agentSpend(stats, "planner");
   const generation = agentSpend(stats, "generation_adapter");

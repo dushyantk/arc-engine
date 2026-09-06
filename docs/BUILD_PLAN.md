@@ -488,7 +488,27 @@ above, not forgotten).
       Magnitude bars use a single hue because the row label carries identity and the semantic
       tokens are reserved for real status, and latency gets its own chart rather than a second axis
       on spend.
-- [ ] `pnpm build` clean, FastAPI starts clean, docker-compose up clean from a fresh checkout
+- [x] **Fresh-checkout bootstrap verified end to end.** Cloned to a clean directory, brought the
+      stack up under a separate compose project on isolated host ports, and walked the README's
+      quickstart in order. `pnpm build` clean, all three containers healthy, `db:push` /
+      `ch:migrate` / `db:seed` clean, dashboard and every route serving. Three real defects, all
+      of which only appear on a fresh checkout:
+      **(1) `clickhouse/migrate.py` never called `env.bootstrap()`**, so it ignored the `.env` the
+      README tells you to create and silently applied the schema to whatever ClickHouse was on the
+      default port — printing `done.` while the configured database stayed empty. The helper had
+      existed since 95112da; this caller never imported it, which is precisely the failure mode
+      the "shared guard is half a fix" rule names. Fixed, and `tests/test_entrypoints.py` now
+      enforces it for every module with a `__main__` block plus `main.py`, with a guard test so a
+      scan that silently matches nothing cannot pass vacuously. The migration also names its
+      target before working and verifies the tables exist afterwards, so `done.` is checkable.
+      **(2) `db:seed` wrote Postgres first and ClickHouse second**, so a seed before `ch:migrate`
+      left a half-seeded database that its own already-seeded guard then refused to repeat. It now
+      preflights ClickHouse and refuses before the first write, naming the host tried.
+      **(3) The landing page 500'd on an empty log.** `agentSpend()` throws rather than show a
+      fabricated zero — right for a log with rows but a missing stage, wrong as the front door of
+      a fresh install. Zero calls is not a cheap run, it is no run, so the page now says that
+      plainly and links to the dashboard. Verified both ways: empty log renders the honest state,
+      the real instance still renders 115 calls / $29.96.
 - [ ] README with quickstart commands and the demo script (3-shot railway sequence, per the pitch).
       **Quickstart half done** in a892794 — the README was telling people to supply Vertex
       credentials the product stopped needing once Veo turned out to be reachable through the

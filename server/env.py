@@ -13,6 +13,13 @@ that reads os.environ at module scope. Both halves of it bit for real:
   until the process exited. Watching a run in progress meant remembering to set
   PYTHONUNBUFFERED=1.
 
+A missing call does not fail loudly - it silently substitutes every default,
+which is the worst possible failure for a settings loader. `clickhouse/migrate.py`
+went months without it and applied a fresh checkout's schema to whatever
+ClickHouse happened to be on the default port, reporting success. That is why
+the rule above is absolute and why `tests/test_entrypoints.py` enforces it
+rather than trusting the next author to remember.
+
 No dependency for this: python-dotenv would be a package for twenty lines, and
 the format here is only ever KEY=value.
 """
