@@ -257,8 +257,20 @@ export const approvalEvents = pgTable(
 // billed endpoints driven by anyone who finds the URL - not to build an account
 // system nobody asked for.
 
+// What an account is allowed to do. 'operator' is everything; 'demo' can read
+// and nothing else.
+//
+// This exists because the sign-in page publishes a working credential so a
+// reviewer can look around. Without a role, that credential also starts billed
+// Veo runs, approves and vetoes versions, and unlocks canon - one visitor could
+// spend real money and leave the demo in a state nobody curated.
+export const userRole = pgEnum("user_role", ["operator", "demo"]);
+
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
+  // Defaults to operator so an account created without thinking about roles is
+  // the *existing* behaviour, not a silently powerless one.
+  role: userRole("role").notNull().default("operator"),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified")

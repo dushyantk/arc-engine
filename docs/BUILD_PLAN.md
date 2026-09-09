@@ -748,7 +748,7 @@ than only by a query. Two things the schema promised were true only in the datab
 
 ### Hosting prerequisites
 
-- [x] **Deployed and verified against the real data.** https://arc-engine-ayudh.vercel.app — Vercel for
+- [x] **Deployed and verified against the real data.** https://arc-engine11.vercel.app — Vercel for
       the web, Fly for the runtime and ClickHouse, Neon for Postgres, R2 for objects. Everything
       reconciled rather than assumed: Postgres `shows=3 seq=5 shots=11 versions=16 refs=5
       scripts=2 breakdowns=4 approvals=26` identical both sides, ClickHouse `$31.1758 over 129`

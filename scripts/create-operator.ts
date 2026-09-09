@@ -4,6 +4,7 @@
  * spends real money would look protected while being worse than nothing.
  *
  *   pnpm auth:create-operator you@example.com
+ *   pnpm auth:create-operator demo@example.com --demo   # read-only
  *
  * The password is read from stdin, never from argv: arguments land in shell
  * history and in the process list, where any other user on the machine can read
@@ -86,8 +87,13 @@ async function main() {
   // the credential is stored exactly the way sign-in will verify it. Hand-rolled
   // rows with a hand-rolled hash would be the thing that silently stops matching.
   const ctx = await auth.$context;
+  // --demo makes a read-only account. The sign-in page publishes one so a
+  // reviewer can look around; it must not be able to spend money or change the
+  // approval record. See lib/auth-guards.ts.
+  const role = process.argv.includes("--demo") ? "demo" : "operator";
+
   const created = await ctx.internalAdapter.createUser(
-    { email, name: email.split("@")[0], emailVerified: true },
+    { email, name: email.split("@")[0], emailVerified: true, role },
     // How this account came to exist, recorded by Better Auth. It really is an
     // email-password account; it just was not created over HTTP.
     { method: "email-password" },
@@ -104,7 +110,9 @@ async function main() {
     password: await ctx.password.hash(password),
   });
 
-  console.log(`Created ${email}. There is no sign-up route; this is the only way in.`);
+  console.log(
+    `Created ${email} as ${role}. There is no sign-up route; this is the only way in.`,
+  );
 }
 
 main().then(

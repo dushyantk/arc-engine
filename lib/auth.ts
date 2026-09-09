@@ -26,6 +26,13 @@ export const auth = betterAuth({
     // to make an account.
     disableSignUp: true,
   },
+  user: {
+    additionalFields: {
+      // Surfaced on the session so a guard is a field read, not a second query
+      // on every write.
+      role: { type: "string", input: false, defaultValue: "operator" },
+    },
+  },
   session: {
     // A dailies session is a working day, not a month. Short enough that a
     // forgotten laptop stops mattering, long enough not to interrupt a run.

@@ -76,6 +76,14 @@ export default async function DashboardLayout({
             ARC ENGINE
           </Link>
           <div className="ml-auto flex items-center gap-3">
+            {/* Said once, at the top, rather than only when a write is refused:
+                a reviewer should know the shape of what they are looking at
+                before they click something that says no. */}
+            {session.user.role !== "operator" ? (
+              <span className="rounded-sm border border-warning/40 bg-warning/10 px-2 py-0.5 font-mono text-[10px] tracking-wide text-warning uppercase">
+                Read-only demo
+              </span>
+            ) : null}
             <span className="font-mono text-[11px] text-muted-foreground">
               {session.user.email}
             </span>

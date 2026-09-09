@@ -15,6 +15,7 @@ import {
   shots,
   shows,
 } from "@/db/schema";
+import { requireOperator } from "@/lib/auth-guards";
 import { callRuntime } from "@/lib/runtime";
 import { resolveShotStatus } from "@/lib/data";
 import { getMinioClient, MINIO_BUCKET } from "@/lib/minio";
@@ -30,6 +31,7 @@ const createShowSchema = z.object({
 });
 
 export async function createShow(formData: FormData) {
+  await requireOperator("create shows");
   const parsed = createShowSchema.parse({ name: formData.get("name") });
   const [show] = await db.insert(shows).values({ name: parsed.name }).returning();
   revalidatePath("/dashboard");
@@ -42,6 +44,7 @@ const createSequenceSchema = z.object({
 });
 
 export async function createSequence(showId: string, formData: FormData) {
+  await requireOperator("create sequences");
   const parsed = createSequenceSchema.parse({
     code: formData.get("code"),
     description: formData.get("description") || undefined,
@@ -70,6 +73,7 @@ export async function createShot(
   sequenceCode: string,
   formData: FormData,
 ) {
+  await requireOperator("create shots");
   const parsed = createShotSchema.parse({
     code: formData.get("code"),
     orderIndex: formData.get("orderIndex"),
@@ -101,6 +105,7 @@ export async function updateShotBrief(
   shotId: string,
   formData: FormData,
 ) {
+  await requireOperator("edit briefs");
   const parsed = updateShotBriefSchema.parse({
     brief: formData.get("brief"),
   });
@@ -141,6 +146,7 @@ export async function submitHumanApproval(
   showName: string,
   formData: FormData,
 ) {
+  await requireOperator("approve or reject a version");
   const parsed = humanApprovalSchema.parse({
     decision: formData.get("decision"),
     reason: formData.get("reason") || undefined,
@@ -236,6 +242,7 @@ const uploadReferenceSchema = z.object({
 });
 
 export async function uploadReferenceAsset(showId: string, formData: FormData) {
+  await requireOperator("upload references");
   const parsed = uploadReferenceSchema.parse({
     name: formData.get("name"),
     type: formData.get("type"),
@@ -282,6 +289,7 @@ export async function setReferenceLock(
   referenceId: string,
   formData: FormData,
 ) {
+  await requireOperator("lock or unlock canon");
   const locked = formData.get("locked") === "true";
   await db
     .update(referenceAssets)
@@ -305,6 +313,7 @@ const draftScriptSchema = z.object({
 });
 
 export async function draftScript(showId: string, formData: FormData) {
+  await requireOperator("write scripts, which makes a billed model call");
   const parsed = draftScriptSchema.parse({ idea: formData.get("idea") });
 
   const { status, body } = await callRuntime("/scripts/draft", {
@@ -338,6 +347,7 @@ export async function submitScriptApproval(
   scriptId: string,
   formData: FormData,
 ) {
+  await requireOperator("approve scripts");
   const parsed = scriptApprovalSchema.parse({
     decision: formData.get("decision"),
     reason: formData.get("reason") || undefined,
@@ -380,6 +390,7 @@ export async function submitScriptApproval(
 // go missing if materialising fails halfway.
 
 export async function proposeBreakdown(showId: string) {
+  await requireOperator("break down a script, which makes a billed model call");
   const { status, body } = await callRuntime("/breakdowns/propose", {
     method: "POST",
     body: JSON.stringify({ show_id: showId }),
@@ -411,6 +422,7 @@ export async function submitBreakdownApproval(
   breakdownId: string,
   formData: FormData,
 ) {
+  await requireOperator("approve a breakdown or materialise shots");
   const parsed = breakdownApprovalSchema.parse({
     decision: formData.get("decision"),
     reason: formData.get("reason") || undefined,
@@ -454,6 +466,7 @@ export async function submitBreakdownApproval(
 // which sheets to make, and the runtime re-checks both the consent flag and the
 // spending ceiling before any call happens.
 export async function generateAssetSheets(showId: string, formData: FormData) {
+  await requireOperator("generate reference sheets, which spends real money");
   const names = formData.getAll("name").map(String).filter(Boolean);
   if (names.length === 0) {
     throw new Error("Select at least one sheet to generate.");
