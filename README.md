@@ -186,6 +186,12 @@ uv run --directory server python run_session.py --shot SH020 --recritique-versio
 uv run --directory server python backfill_posters.py --dry-run
 ```
 
+## Demo video
+
+[`docs/arc-engine-demo.mp4`](docs/arc-engine-demo.mp4) — 2m22s, recorded by driving the **live
+deployment** with Playwright rather than a screen recorder, so every figure on screen is the real
+hosted ledger. Scenario lives outside this repo, in `demo-recorder/scenarios/arc-engine.mjs`.
+
 ## Demo script
 
 Roughly five minutes, and **every step below is free** except the one marked otherwise. The
