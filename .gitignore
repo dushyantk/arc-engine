@@ -34,3 +34,7 @@ __pycache__/
 # real generated media + the ledger of what produced it — local record,
 # not project history; videos don't belong in git, see generations/LEDGER.md
 /generations/
+.env*
+
+# Provisioning secrets held locally before they reach a password manager.
+deploy/secrets.local.env

@@ -1,0 +1,9 @@
+<clickhouse>
+    <!-- Only "::", never "::" plus "0.0.0.0". On dual-stack Linux the IPv6 any
+         address already accepts IPv4, so listing both makes the second bind fail
+         with EADDRINUSE - and the one that loses is "::", which is exactly the
+         one Fly's proxy connects on. The app then deploys "successfully" with
+         nothing reachable. -->
+    <listen_host>::</listen_host>
+    <listen_try>1</listen_try>
+</clickhouse>

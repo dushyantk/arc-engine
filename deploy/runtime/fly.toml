@@ -1,0 +1,23 @@
+# The Dailies agent runtime.
+#
+# One machine, never scaled past it: the single-run lock is in Postgres now, so
+# two machines would be *correct*, but nothing about this product wants
+# concurrent runs - the lock exists to stop them.
+app = "dailies-runtime"
+primary_region = "iad"
+
+[build]
+  dockerfile = "deploy/runtime/Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Never stopped: a run is a background task on this machine. Scaling to zero
+  # mid-run would abandon a billed Veo generation with nothing to receive it.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
