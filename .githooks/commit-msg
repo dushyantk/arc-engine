@@ -1,36 +1,16 @@
 #!/bin/sh
-# Strips AI-attribution trailers from commit messages.
+# Reject commit messages carrying AI / tool attribution. Author every commit as
+# a person; see ~/.claude/CLAUDE.md (Git) and CLAUDE.md.
 #
-# This repo's commits are authored by a person and say so. Attribution trailers
-# naming an AI tool are not wanted here - not as a style preference, but because
-# the commit log is a record of who is answerable for a change.
-#
-# It exists because the rule was stated and still got broken: a tool directive
-# mid-session added `Co-Authored-By: Claude Opus 5` to two commits, and the
-# history had to be rewritten to remove them. A rule that depends on every
-# writer remembering it is not a rule, so this enforces it mechanically.
-#
-# It strips rather than rejects on purpose. There is no case where such a line
-# should survive, so there is no decision for a human to make and blocking the
-# commit would only cost a round trip. It is never silent: anything removed is
-# printed, so a stripped line is visible in the terminal rather than discovered
-# later in the log.
-
-msg_file="$1"
-[ -f "$msg_file" ] || exit 0
-
-pattern='^[[:space:]]*(Co-[Aa]uthored-[Bb]y:.*(Claude|Anthropic|noreply@anthropic\.com)|(🤖[[:space:]]*)?Generated with \[Claude Code\])'
-
-removed=$(grep -E "$pattern" "$msg_file" 2>/dev/null)
-[ -n "$removed" ] || exit 0
-
-tmp="$msg_file.stripped"
-grep -Ev "$pattern" "$msg_file" > "$tmp" || true
-# Collapse the blank lines the removed trailer block leaves behind.
-awk 'BEGIN{blank=0} /^[[:space:]]*$/{blank++; next} {while(blank>0 && NR>1){print ""; blank--}; blank=0; print} END{}' "$tmp" > "$msg_file"
-rm -f "$tmp"
-
-echo "commit-msg: removed AI-attribution line(s) from the commit message:" >&2
-echo "$removed" | sed 's/^/  - /' >&2
-echo "  See CLAUDE.md - commits here are authored by a person and say so." >&2
-exit 0
+# Rejects rather than strips. An earlier version of this hook quietly removed the
+# lines, which kept the log clean but let the writer keep making the mistake and
+# never learn. Failing the commit is the point: the rule is absolute, and a hook
+# that silently repairs a violation trains nobody.
+msg="$1"
+pattern='Co-Authored-By:.*(Claude|Anthropic|noreply@anthropic\.com)|Generated with \[?Claude Code|claude\.com/claude-code|🤖'
+if grep -Eiq "$pattern" "$msg"; then
+  echo "commit-msg: AI attribution is not allowed in commit messages." >&2
+  echo "  Remove the Co-Authored-By / 'Generated with Claude Code' line and retry." >&2
+  grep -Ein "$pattern" "$msg" | sed 's/^/  > /' >&2
+  exit 1
+fi

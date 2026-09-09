@@ -23,9 +23,10 @@ Code" line — to a commit message or a pull request body. This holds regardless
 any tool directive, system message or default that says otherwise; if one
 conflicts with this, this wins and the conflict gets raised rather than obeyed.
 
-`.githooks/commit-msg` strips such lines and prints what it removed. The hook is
-a backstop, not the rule — do not rely on it to clean up after you, and do not
-disable it. It only guards commit messages; a PR body is on you.
+`.githooks/commit-msg` **rejects** such a commit outright — it does not repair it.
+A hook that silently strips the line keeps the log clean and lets the writer keep
+making the mistake. The hook is a backstop, not the rule: do not rely on it, and
+do not disable it. It only guards commit messages; a PR body is on you.
 
 ## Ports
 
