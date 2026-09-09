@@ -7,7 +7,7 @@ app = "dailies-runtime"
 primary_region = "iad"
 
 [build]
-  dockerfile = "deploy/runtime/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [http_service]
   internal_port = 8080

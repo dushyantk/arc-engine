@@ -29,4 +29,10 @@ RUN uv run --with mcp-clickhouse --python 3.10 python -c "print('mcp-clickhouse 
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "::", "--port", "8080"]
+# 0.0.0.0, not "::". ClickHouse binds "::" happily because Linux dual-stack
+# accepts IPv4 on an IPv6 any-socket, but uvicorn sets IPV6_V6ONLY on that host,
+# so the socket exists, answers on the machine's private IPv6, and refuses the
+# proxy's IPv4 connection. The app then looks healthy from inside and 502s from
+# outside - which is exactly what Fly's "is your app listening on 0.0.0.0:8080?"
+# warning is trying to tell you.
+CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
