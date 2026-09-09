@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dailies",
+  title: "Arc Engine",
   description: "An agentic GenFX supervisor that makes an AI-generated sequence survive dailies.",
 };
 

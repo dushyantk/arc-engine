@@ -19,7 +19,7 @@ from video_frames import extract_frames
 CRITIC_MODEL = "gemini-3.1-pro-preview"
 FRAME_COUNT = 12
 
-CRITIC_PROMPT_TEMPLATE = """You are the supervisor/critic agent for Dailies, a GenFX dailies
+CRITIC_PROMPT_TEMPLATE = """You are the supervisor/critic agent for Arc Engine, a GenFX dailies
 review system. You are given two things for the same shot: the full video, and {frame_count}
 still frames sampled at even intervals through it, each labeled with its timestamp. You are
 looking for objective continuity breaks, not giving a general creative review.

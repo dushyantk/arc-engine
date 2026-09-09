@@ -118,7 +118,7 @@ export default async function ShotDetailPage({
           <Textarea
             name="brief"
             defaultValue={shot.brief ?? ""}
-            placeholder="Describe what this shot needs to accomplish — Dailies plans the actual generation prompt from this."
+            placeholder="Describe what this shot needs to accomplish — Arc Engine plans the actual generation prompt from this."
             rows={3}
             className="font-mono text-sm"
           />

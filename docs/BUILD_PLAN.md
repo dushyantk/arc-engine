@@ -1,4 +1,4 @@
-# Dailies — Build Plan to Beta
+# Arc Engine — Build Plan to Beta
 
 Phased checklist. Each phase should leave the app runnable end-to-end at reduced scope — no phase
 ships a mock that a later phase has to tear out. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
@@ -23,7 +23,7 @@ system design these phases implement.
 - [x] Scaffold FastAPI sidecar (`server/`) — `uv`-managed, `fastapi`, `uvicorn`, `ruff`/`mypy`
       clean, `/health` verified
 - [x] `docker-compose.yml`: Postgres (5451), ClickHouse (8124/9005), MinIO (9010/9011)
-- [x] Update `~/dev/ports.md` Dailies entry to the new path (`~/dev/arc-engine`, no longer under
+- [x] Update `~/dev/ports.md` Arc Engine entry to the new path (`~/dev/arc-engine`, no longer under
       `blockbuster/`) and current commands
 - [x] `.env.example`: `DATABASE_URL`, `CLICKHOUSE_URL` (+ user/password), `MINIO_ENDPOINT` +
       keys + bucket, `GOOGLE_CLOUD_PROJECT` / `GOOGLE_APPLICATION_CREDENTIALS`, `AGENT_RUNTIME_URL`
@@ -748,7 +748,7 @@ than only by a query. Two things the schema promised were true only in the datab
 
 ### Hosting prerequisites
 
-- [x] **Deployed and verified against the real data.** https://dailies-five.vercel.app — Vercel for
+- [x] **Deployed and verified against the real data.** https://arc-engine-ayudh.vercel.app — Vercel for
       the web, Fly for the runtime and ClickHouse, Neon for Postgres, R2 for objects. Everything
       reconciled rather than assumed: Postgres `shows=3 seq=5 shots=11 versions=16 refs=5
       scripts=2 breakdowns=4 approvals=26` identical both sides, ClickHouse `$31.1758 over 129`
@@ -891,7 +891,7 @@ frames; casting, dialogue or voice; any editing timeline.
   sponsor lineup, not to this product.
 - **FastAPI owns the agent loop; Next.js owns CRUD reads + the dashboard.** Python has the mature
   Gemini/Veo SDKs and the async loop is easier there than in a route handler.
-- **Product surface name is "Dailies"; directory/ports stay `arc-engine`.** No path rename, no
+- **Product surface name is "Arc Engine"; directory/ports stay `arc-engine`.** No path rename, no
   ports.md renumber — same reserved block, new description.
 - **ClickHouse stays local (docker-compose), not ClickHouse Cloud.** A ClickHouse Cloud
   organization got connected via MCP on 2026-08-17 but has zero provisioned services and no

@@ -1,4 +1,4 @@
-# Dailies — Design System
+# Arc Engine — Design System
 
 **Locked: Lab Bench.** Cool slate, sharp corners, mono-forward headings and data. Landing page
 and app share this token set; nothing gets a second visual language. See

@@ -1,4 +1,4 @@
-# Dailies (this directory: `arc-engine`)
+# Arc Engine (this directory: `arc-engine`)
 
 Product: agentic GenFX dailies supervisor. Plans a shot, generates it with Veo, watches it with
 Gemini, writes real VFX notes, regenerates what failed, approves only when the sequence agrees
@@ -30,6 +30,6 @@ do not disable it. It only guards commit messages; a PR body is on you.
 
 ## Ports
 
-Reserved in `~/dev/ports.md` under `Dailies`, path `~/dev/arc-engine`: web `3210`, FastAPI `8091`,
+Reserved in `~/dev/ports.md` under `Arc Engine`, path `~/dev/arc-engine`: web `3210`, FastAPI `8091`,
 Postgres `5451`, ClickHouse `8124`/`9005`, MinIO `9010`/`9011`. Read that file before adding any
 new service or port.

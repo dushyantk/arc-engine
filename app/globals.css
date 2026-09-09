@@ -3,7 +3,7 @@
 @import "shadcn/tailwind.css";
 
 /*
-  Dailies design tokens — Lab Bench. Dark-only by product decision: no .dark
+  Arc Engine design tokens — Lab Bench. Dark-only by product decision: no .dark
   class, no prefers-color-scheme branching. See docs/DESIGN_SYSTEM.md.
 */
 

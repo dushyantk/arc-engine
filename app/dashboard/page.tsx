@@ -25,7 +25,7 @@ export default async function ShowsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
         <div>
           <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-            Dailies
+            Arc Engine
           </p>
           <h1 className="font-heading mt-1 text-2xl font-semibold tracking-tight">
             Shows

@@ -12,7 +12,7 @@ from routes.scripts import router as scripts_router
 from routes.sheets import router as sheets_router
 from runtime_auth import announce, is_open, require_runtime_token
 
-app = FastAPI(title="Dailies agent runtime")
+app = FastAPI(title="Arc Engine agent runtime")
 
 announce()
 

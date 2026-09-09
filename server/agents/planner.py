@@ -24,7 +24,7 @@ from retry import call_with_retry
 
 PLANNER_MODEL = "gemini-3.6-flash"
 
-RESEARCH_PROMPT_TEMPLATE = """You are the planning agent for Dailies, a GenFX dailies supervisor.
+RESEARCH_PROMPT_TEMPLATE = """You are the planning agent for Arc Engine, a GenFX dailies supervisor.
 
 Before drafting a generation brief for shot {shot_code} in sequence {sequence_code} of show
 "{show_name}", query the production memory in ClickHouse (database `dailies`) for the approved
@@ -39,7 +39,7 @@ must preserve. If nothing is approved yet, say so plainly.
 Scene goal for this shot: {scene_goal}
 """
 
-BRIEF_PROMPT_TEMPLATE = """You are the planning agent for Dailies. Turn the continuity research
+BRIEF_PROMPT_TEMPLATE = """You are the planning agent for Arc Engine. Turn the continuity research
 below into a generation brief for shot {shot_code}.
 
 Continuity research (grounded in production memory):

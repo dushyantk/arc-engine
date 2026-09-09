@@ -73,7 +73,7 @@ export default async function DashboardLayout({
             className="flex items-center gap-2 text-sm font-semibold tracking-tight"
           >
             <Film className="size-[15px] text-primary" />
-            DAILIES
+            ARC ENGINE
           </Link>
           <div className="ml-auto flex items-center gap-3">
             <span className="font-mono text-[11px] text-muted-foreground">
@@ -89,7 +89,7 @@ export default async function DashboardLayout({
           <div className="mb-5 flex items-center gap-2 px-2.5">
             <Film className="size-[15px] text-primary" />
             <span className="font-mono text-[13px] font-semibold">
-              DAILIES
+              ARC ENGINE
             </span>
           </div>
           <nav className="flex flex-col gap-0.5">

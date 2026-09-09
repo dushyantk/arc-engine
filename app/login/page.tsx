@@ -9,7 +9,7 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
       <div className="flex items-center gap-2">
         <Film className="size-[15px] text-primary" />
-        <span className="font-mono text-[13px] font-semibold">DAILIES</span>
+        <span className="font-mono text-[13px] font-semibold">ARC ENGINE</span>
       </div>
       <h1 className="font-heading mt-6 text-xl font-semibold tracking-tight">
         Sign in

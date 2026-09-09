@@ -15,7 +15,7 @@ from retry import call_with_retry
 
 REVISION_MODEL = "gemini-3.6-flash"
 
-REVISION_PROMPT_TEMPLATE = """You are the revision agent for Dailies. Shot {shot_code} v{version}
+REVISION_PROMPT_TEMPLATE = """You are the revision agent for Arc Engine. Shot {shot_code} v{version}
 failed review. Turn the findings below into a concrete regeneration instruction for v{next_version}.
 
 Prior generation prompt:

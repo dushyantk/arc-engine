@@ -1,8 +1,8 @@
-# Dailies
+# Arc Engine
 
 > An agentic GenFX supervisor that makes an AI-generated sequence survive dailies.
 
-Give it an idea. Dailies writes a script from it, breaks that into a shot list, generates the
+Give it an idea. Arc Engine writes a script from it, breaks that into a shot list, generates the
 reference sheets the sequence has to stay true to, plans each shot against the approved continuity
 state, generates it with Veo 3.1, watches its own footage with Gemini, writes real dailies notes,
 regenerates what failed, and doesn't approve the sequence until the shots agree with each other.
@@ -115,12 +115,12 @@ one the data cannot actually support.
 
 ## Deployed
 
-Live at **https://dailies-five.vercel.app** — the landing page is public, everything that can see
+Live at **https://arc-engine-ayudh.vercel.app** — the landing page is public, everything that can see
 or spend is behind sign-in.
 
 | Piece | Where | Why there |
 | --- | --- | --- |
-| Web | Vercel (`dailies`) | Next.js, server components read Postgres and ClickHouse directly |
+| Web | Vercel (`arc-engine`) | Next.js, server components read Postgres and ClickHouse directly |
 | Agent runtime | Fly `dailies-runtime`, iad | Not serverless: a run is a background task and a critique takes ~390s |
 | Postgres | Neon `dailies`, aws-us-east-1 | Provisioned in the Neon console, not the Vercel Marketplace |
 | ClickHouse | Fly `dailies-clickhouse`, iad | One node with a volume; Cloud would be another vendor account for no gain |
@@ -138,7 +138,7 @@ it be private, and is the right shape if this ever grows past one operator.
 
 ## Ports
 
-Reserved in `~/dev/ports.md` under `Dailies (~/dev/arc-engine)`.
+Reserved in `~/dev/ports.md` under `Arc Engine (~/dev/arc-engine)`.
 
 | Service | Port |
 | --- | --- |

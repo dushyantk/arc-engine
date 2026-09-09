@@ -26,7 +26,7 @@ from retry import call_with_retry
 
 CONTINUITY_MODEL = "gemini-3.6-flash"
 
-CONTINUITY_PROMPT_TEMPLATE = """You are the sequence-level continuity supervisor for Dailies, a
+CONTINUITY_PROMPT_TEMPLATE = """You are the sequence-level continuity supervisor for Arc Engine, a
 GenFX dailies review system. Every shot below has already been individually approved by the
 per-shot critic. Your job is different: check whether they agree with EACH OTHER as a sequence,
 in shot order - continuity across the cut, not within one shot.

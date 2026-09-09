@@ -1,12 +1,12 @@
-# Dailies — Architecture
+# Arc Engine — Architecture
 
-> Product name: **Dailies**. Repo/dir/ports stay `arc-engine` (already reserved in `~/dev/ports.md`) for continuity — no path rename.
+> Product name: **Arc Engine**. Repo/dir/ports stay `arc-engine` (already reserved in `~/dev/ports.md`) for continuity — no path rename.
 
 ## 1. What this is, precisely
 
 Not a generator. A supervisor.
 
-Given a scene brief, Dailies plans a shot list, generates each shot with Veo, watches its own
+Given a scene brief, Arc Engine plans a shot list, generates each shot with Veo, watches its own
 footage with Gemini, writes real dailies notes, decides pass/fail per continuity axis, regenerates
 what failed against locked reference material, and only marks a shot **Approved** when it agrees
 with everything around it — the preceding shot, the following shot, the approved character/prop/
@@ -34,9 +34,9 @@ Closed loop: **Plan → Generate → Watch → Critique → Revise → Generate 
 ## 3. Product boundary (sibling projects)
 
 - **Backlot** orchestrates generative workflows. **Big Squeeze** is an autonomous creative studio.
-  Dailies owns one layer only: **GenFX supervision, continuity, and approval.** It exposes a
+  Arc Engine owns one layer only: **GenFX supervision, continuity, and approval.** It exposes a
   narrow surface (submit a shot brief with references → get back an approval decision + QC
-  history) that either sibling could call later. Dailies must not import from or depend on either.
+  history) that either sibling could call later. Arc Engine must not import from or depend on either.
 
 ## 4. Core domain model
 

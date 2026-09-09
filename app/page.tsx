@@ -122,7 +122,7 @@ function EmptyLanding() {
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-24">
       <p className="font-mono text-xs tracking-[0.2em] text-neutral-500 uppercase">
-        Dailies · Agentic GenFX supervisor
+        Arc Engine · Agentic GenFX supervisor
       </p>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-100">
         No runs on the record yet.
@@ -263,7 +263,7 @@ export default async function LandingPage() {
 
       <div className="co-slatebar" id="co-slatebar">
         <div className="co-slatebar__id">
-          <b>DAILIES</b>
+          <b>ARC ENGINE</b>
           <span>SH020_v006</span>
           <span>REAL RUN</span>
         </div>
@@ -272,7 +272,7 @@ export default async function LandingPage() {
 
       <div className="co-topbar" role="banner">
         <div className="co-brand">
-          <span className="co-brand__name">Dailies</span>
+          <span className="co-brand__name">Arc Engine</span>
           <span className="co-brand__meta">Agentic GenFX supervisor</span>
         </div>
         <nav className="co-topnav" aria-label="Primary">
@@ -319,7 +319,7 @@ export default async function LandingPage() {
             <span className="l2">Making it belong in the movie is the problem.</span>
           </h1>
 
-          <p className="co-hero__deck">Dailies plans the shot, generates it with Veo 3.1, watches its own footage with Gemini, writes the notes, and regenerates what failed. It marks a shot approved only when the shot agrees with everything around it.</p>
+          <p className="co-hero__deck">Arc Engine plans the shot, generates it with Veo 3.1, watches its own footage with Gemini, writes the notes, and regenerates what failed. It marks a shot approved only when the shot agrees with everything around it.</p>
 
           <div className="co-hero__cta">
             <Link className="co-btn co-btn--primary" href="/dashboard">See the pipeline <svg aria-hidden="true"><use href="#i-arrow" /></svg></Link>
@@ -330,7 +330,7 @@ export default async function LandingPage() {
         <div className="co-hero__cue" aria-hidden="true"><span>Scroll</span><i></i></div>
 
         <div className="co-hero__bar co-hero__bar--bot">
-          <span>Dailies · Agentic GenFX supervisor</span>
+          <span>Arc Engine · Agentic GenFX supervisor</span>
           <span>Real run · {totalCalls} calls · {totalSpend}</span>
         </div>
       </section>
@@ -353,7 +353,7 @@ export default async function LandingPage() {
             </h2>
 
             <p className="hero__lede" data-reveal data-d="2">
-              Dailies is a <strong>supervisor, not a generator</strong>. It plans a shot against the
+              Arc Engine is a <strong>supervisor, not a generator</strong>. It plans a shot against the
               approved continuity state, renders it with Veo 3.1, watches its own footage with Gemini,
               writes real dailies notes, and regenerates what failed. A shot is marked approved only when
               it agrees with the shot before it, the shot after it, the locked character, prop and
@@ -869,7 +869,7 @@ export default async function LandingPage() {
         <div className="wrap">
           <div className="foot__grid">
             <div>
-              <h3 className="foot__h">Dailies</h3>
+              <h3 className="foot__h">Arc Engine</h3>
               <p className="foot__blurb">
                 An agentic GenFX supervisor. It plans, generates, watches, critiques, revises and approves
                 — and only approves when the shot agrees with everything around it.
@@ -917,7 +917,7 @@ export default async function LandingPage() {
           </div>
 
           <div className="foot__bar">
-            <span>Dailies — agentic GenFX supervisor</span>
+            <span>Arc Engine — agentic GenFX supervisor</span>
             <span>Next.js · FastAPI · Postgres · ClickHouse · MinIO · Gemini · Veo 3.1</span>
             <span>Every figure on this page was read from the run log.</span>
           </div>
