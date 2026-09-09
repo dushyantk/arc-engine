@@ -220,3 +220,9 @@ SQ010_SH030/
 Pre-beta, and the numbers on the landing page are read live from `agent_decision_log` rather than
 written by hand. Real spend to date is visible in the dashboard. Current phase and the remaining
 work are tracked in [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md).
+
+## License
+
+[Apache License 2.0](LICENSE). Chosen over MIT for the explicit patent grant —
+this generates and supervises media, and a permissive licence without one leaves
+that question open for anyone building on it commercially.
