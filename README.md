@@ -113,6 +113,29 @@ the dashboard says so rather than implying a cap exists. It is a global cap rath
 because spend is attributed by shot code, which is not unique across shows — a per-show figure is
 one the data cannot actually support.
 
+## Deployed
+
+Live at **https://dailies-five.vercel.app** — the landing page is public, everything that can see
+or spend is behind sign-in.
+
+| Piece | Where | Why there |
+| --- | --- | --- |
+| Web | Vercel (`dailies`) | Next.js, server components read Postgres and ClickHouse directly |
+| Agent runtime | Fly `dailies-runtime`, iad | Not serverless: a run is a background task and a critique takes ~390s |
+| Postgres | Neon `dailies`, aws-us-east-1 | Provisioned in the Neon console, not the Vercel Marketplace |
+| ClickHouse | Fly `dailies-clickhouse`, iad | One node with a volume; Cloud would be another vendor account for no gain |
+| Objects | Cloudflare R2 `arc-engine` | S3-compatible, so only the endpoint and keys change |
+
+Two things worth knowing before touching it:
+
+**The runtime binds `0.0.0.0`, not `::`.** ClickHouse binds `::` happily because Linux dual-stack
+accepts IPv4 on an IPv6 any-socket; uvicorn sets `IPV6_V6ONLY`, so the same flag makes it answer
+from inside the machine and 502 from outside.
+
+**ClickHouse is publicly reachable, password-protected.** Vercel reads it directly — `lib/clickhouse.ts`
+runs server-side, outside Fly's private network. Routing those reads through the runtime would let
+it be private, and is the right shape if this ever grows past one operator.
+
 ## Ports
 
 Reserved in `~/dev/ports.md` under `Dailies (~/dev/arc-engine)`.

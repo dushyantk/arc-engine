@@ -748,6 +748,21 @@ than only by a query. Two things the schema promised were true only in the datab
 
 ### Hosting prerequisites
 
+- [x] **Deployed and verified against the real data.** https://dailies-five.vercel.app — Vercel for
+      the web, Fly for the runtime and ClickHouse, Neon for Postgres, R2 for objects. Everything
+      reconciled rather than assumed: Postgres `shows=3 seq=5 shots=11 versions=16 refs=5
+      scripts=2 breakdowns=4 approvals=26` identical both sides, ClickHouse `$31.1758 over 129`
+      identical, all 50 objects and 127MB in R2. The live landing page reads 129 calls / $31.18
+      from the hosted ledger, media serves from R2, and signing in reaches the dashboard with all
+      three shows and no page errors. Auth tables were deliberately not migrated - the local
+      operator's password is a throwaway and must not become a production credential.
+      Four things only deploying could find: Fly apps created with `apps create` get **no public
+      IPs** until allocated, so both apps deployed "successfully" and resolved to nothing;
+      ClickHouse listing both `::` and `0.0.0.0` makes the second bind fail with EADDRINUSE and the
+      one that loses is the one the proxy uses; uvicorn's `--host ::` sets `IPV6_V6ONLY` so the
+      runtime answered from inside the machine and 502'd from outside; and the Fly build context is
+      the repo root, so without a `.dockerignore` every deploy shipped 2.2GB.
+
 - [x] **The single-run lock moved out of process memory.** It was a module global in
       `routes/runs.py` — correct on one machine, silently wrong on two: each instance believed it
       was idle, so two operators could start two billed runs at the same moment and neither would
